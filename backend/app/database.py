@@ -5,17 +5,24 @@ from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
 from app.config import settings
 
-# Ensure data directory exists
-db_path = settings.DATABASE_URL.replace("sqlite:///", "")
-db_dir = os.path.dirname(db_path)
-if db_dir:
-    os.makedirs(db_dir, exist_ok=True)
+db_url = settings.DATABASE_URL
 
-engine = create_engine(
-    settings.DATABASE_URL,
-    connect_args={"check_same_thread": False},
-    echo=False,
-)
+# Replit PostgreSQL URLs may start with "postgres://" which SQLAlchemy 2.x doesn't accept
+if db_url.startswith("postgres://"):
+    db_url = db_url.replace("postgres://", "postgresql://", 1)
+
+is_sqlite = db_url.startswith("sqlite")
+
+if is_sqlite:
+    # Ensure data directory exists for SQLite
+    db_path = db_url.replace("sqlite:///", "")
+    db_dir = os.path.dirname(db_path)
+    if db_dir:
+        os.makedirs(db_dir, exist_ok=True)
+    engine = create_engine(db_url, connect_args={"check_same_thread": False}, echo=False)
+else:
+    # PostgreSQL (Replit)
+    engine = create_engine(db_url, echo=False, pool_pre_ping=True)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()

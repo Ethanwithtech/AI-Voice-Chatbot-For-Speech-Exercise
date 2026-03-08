@@ -5,5 +5,6 @@
     pkgs.ffmpeg
     pkgs.gcc
     pkgs.pkg-config
+    pkgs.postgresql
   ];
 }

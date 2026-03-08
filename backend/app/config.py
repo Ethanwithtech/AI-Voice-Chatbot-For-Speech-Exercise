@@ -8,10 +8,9 @@ class Settings:
     # ElevenLabs STT
     ELEVENLABS_API_KEY: str = os.getenv("ELEVENLABS_API_KEY", "")
 
-    # OpenRouter LLM
-    OPENROUTER_API_KEY: str = os.getenv("OPENROUTER_API_KEY", "")
-    OPENROUTER_BASE_URL: str = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
-    LLM_MODEL: str = os.getenv("LLM_MODEL", "openai/gpt-4.1")
+    # Poe API (for LLM)
+    POE_API_KEY: str = os.getenv("POE_API_KEY", "")
+    POE_BOT_NAME: str = os.getenv("POE_BOT_NAME", "GPT-4o")
 
     # JWT
     JWT_SECRET: str = os.getenv("JWT_SECRET", "change-this-secret-key-in-production")
@@ -25,7 +24,8 @@ class Settings:
     # Upload
     UPLOAD_DIR: str = os.getenv("UPLOAD_DIR", "uploads")
 
-    # Database (SQLite)
+    # Database - Replit provides DATABASE_URL as PostgreSQL connection string
+    # Falls back to SQLite for local development
     DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./data/app.db")
 
 

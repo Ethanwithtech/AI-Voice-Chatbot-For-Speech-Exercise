@@ -1,13 +1,21 @@
 import json
+import asyncio
 from typing import AsyncGenerator, Optional
-from openai import OpenAI
+import fastapi_poe as fp
 from app.config import settings
 from app.prompts.speech_feedback import SPEECH_FEEDBACK_SYSTEM_PROMPT, build_feedback_prompt
 
-client = OpenAI(
-    api_key=settings.OPENROUTER_API_KEY,
-    base_url=settings.OPENROUTER_BASE_URL,
-)
+
+async def _get_poe_response(messages: list[fp.ProtocolMessage]) -> str:
+    """Get a complete response from Poe API."""
+    response_text = ""
+    async for partial in fp.get_bot_response(
+        messages=messages,
+        bot_name=settings.POE_BOT_NAME,
+        api_key=settings.POE_API_KEY,
+    ):
+        response_text += partial.text
+    return response_text
 
 
 async def generate_feedback(
@@ -27,19 +35,39 @@ async def generate_feedback(
         difficulty=difficulty,
     )
 
-    response = client.chat.completions.create(
-        model=settings.LLM_MODEL,
-        messages=[
-            {"role": "system", "content": SPEECH_FEEDBACK_SYSTEM_PROMPT},
-            {"role": "user", "content": user_prompt},
-        ],
-        temperature=0.7,
-        max_tokens=2000,
-        response_format={"type": "json_object"},
-    )
+    messages = [
+        fp.ProtocolMessage(role="system", content=SPEECH_FEEDBACK_SYSTEM_PROMPT),
+        fp.ProtocolMessage(role="user", content=user_prompt),
+    ]
 
-    content = response.choices[0].message.content
-    feedback = json.loads(content)
+    response_text = await _get_poe_response(messages)
+
+    # Try to parse JSON from the response
+    # Sometimes LLM wraps JSON in markdown code blocks
+    text = response_text.strip()
+    if text.startswith("```json"):
+        text = text[7:]
+    if text.startswith("```"):
+        text = text[3:]
+    if text.endswith("```"):
+        text = text[:-3]
+    text = text.strip()
+
+    try:
+        feedback = json.loads(text)
+    except json.JSONDecodeError:
+        # If JSON parsing fails, return a basic structure
+        feedback = {
+            "overall_assessment": response_text,
+            "score": 70,
+            "grammar_errors": [],
+            "suggestions": ["Please try again for a more detailed analysis."],
+            "strengths": [],
+            "areas_to_improve": [],
+            "prosody_feedback": "",
+            "pronunciation_feedback": "",
+        }
+
     return feedback
 
 
@@ -60,17 +88,15 @@ async def generate_feedback_stream(
         difficulty=difficulty,
     )
 
-    stream = client.chat.completions.create(
-        model=settings.LLM_MODEL,
-        messages=[
-            {"role": "system", "content": SPEECH_FEEDBACK_SYSTEM_PROMPT},
-            {"role": "user", "content": user_prompt},
-        ],
-        temperature=0.7,
-        max_tokens=2000,
-        stream=True,
-    )
+    messages = [
+        fp.ProtocolMessage(role="system", content=SPEECH_FEEDBACK_SYSTEM_PROMPT),
+        fp.ProtocolMessage(role="user", content=user_prompt),
+    ]
 
-    for chunk in stream:
-        if chunk.choices[0].delta.content:
-            yield chunk.choices[0].delta.content
+    async for partial in fp.get_bot_response(
+        messages=messages,
+        bot_name=settings.POE_BOT_NAME,
+        api_key=settings.POE_API_KEY,
+    ):
+        if partial.text:
+            yield partial.text
