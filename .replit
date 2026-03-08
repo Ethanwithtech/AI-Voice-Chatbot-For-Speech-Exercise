@@ -1,0 +1,55 @@
+modules = ["nodejs-20", "python-3.11"]
+[agent]
+expertMode = true
+
+[nix]
+channel = "stable-25_05"
+packages = ["ffmpeg"]
+
+[[ports]]
+localPort = 3001
+externalPort = 3001
+
+[[ports]]
+localPort = 5000
+externalPort = 5000
+
+[[ports]]
+localPort = 8000
+externalPort = 80
+
+[workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Start application"
+
+[[workflows.workflow]]
+name = "Start application"
+author = "agent"
+
+[workflows.workflow.metadata]
+outputType = "webview"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd backend && python -m uvicorn app.main:app --host 0.0.0.0 --port 5000"
+waitForPort = 5000
+
+[deployment]
+deploymentTarget = "autoscale"
+run = ["bash", "-c", "cd backend && python -m uvicorn app.main:app --host 0.0.0.0 --port 5000"]
+build = ["bash", "-c", "cd frontend && npm install --silent && npm run build && cd ../backend && pip install -q -r requirements.txt"]
+
+[userenv]
+
+[userenv.shared]
+POE_API_KEY = "wu6NGz2ZIYHRBJDkST7i3jK_sAdmWAMVOg_ImDVgmiY"
+JWT_SECRET = "speech-coach-secret-2025-hkbu"
+POE_BOT_NAME = "GPT-4o-Mini"
