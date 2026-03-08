@@ -1,12 +1,12 @@
 import { useNavigate } from "react-router-dom"
-import { Mic, LogOut, User } from "lucide-react"
+import { Mic, LogOut, User, Eye, EyeOff } from "lucide-react"
 import { useAuth } from "@/lib/auth"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ThemeToggle } from "./ThemeToggle"
 
 export function Header() {
-  const { user, logout } = useAuth()
+  const { user, logout, canSwitchView, viewMode, setViewMode, actualRole } = useAuth()
   const navigate = useNavigate()
 
   const handleLogout = () => {
@@ -14,11 +14,20 @@ export function Header() {
     navigate("/login")
   }
 
-  const roleColor = {
-    admin: "destructive" as const,
-    teacher: "default" as const,
-    student: "secondary" as const,
+  const toggleViewMode = () => {
+    const newMode = viewMode === "default" ? "student" : "default"
+    setViewMode(newMode)
+    navigate("/")
   }
+
+  const displayRole = viewMode === "student" ? "student (preview)" : actualRole
+  const roleColor = viewMode === "student"
+    ? "secondary" as const
+    : actualRole === "admin"
+      ? "destructive" as const
+      : actualRole === "teacher"
+        ? "default" as const
+        : "secondary" as const
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 h-16 glass border-b">
@@ -38,10 +47,30 @@ export function Header() {
         <div className="flex items-center gap-3">
           {user && (
             <>
+              {canSwitchView && (
+                <Button
+                  variant={viewMode === "student" ? "default" : "outline"}
+                  size="sm"
+                  onClick={toggleViewMode}
+                  className="gap-1.5 text-xs"
+                >
+                  {viewMode === "student" ? (
+                    <>
+                      <EyeOff className="h-3.5 w-3.5" />
+                      Exit Student View
+                    </>
+                  ) : (
+                    <>
+                      <Eye className="h-3.5 w-3.5" />
+                      Student View
+                    </>
+                  )}
+                </Button>
+              )}
               <div className="flex items-center gap-2">
                 <User className="h-4 w-4 text-muted-foreground" />
                 <span className="text-sm font-medium">{user.name}</span>
-                <Badge variant={roleColor[user.role]}>{user.role}</Badge>
+                <Badge variant={roleColor}>{displayRole}</Badge>
               </div>
               <Button variant="ghost" size="icon" onClick={handleLogout}>
                 <LogOut className="h-4 w-4" />

@@ -10,6 +10,8 @@ export interface User {
   created_at?: string | null
 }
 
+type ViewMode = "default" | "student"
+
 interface AuthContextType {
   user: User | null
   token: string | null
@@ -20,6 +22,11 @@ interface AuthContextType {
   isTeacher: boolean
   isAdmin: boolean
   isStudent: boolean
+  // View mode switching
+  viewMode: ViewMode
+  setViewMode: (mode: ViewMode) => void
+  canSwitchView: boolean
+  actualRole: string | null
 }
 
 const AuthContext = createContext<AuthContextType | null>(null)
@@ -28,11 +35,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [token, setToken] = useState<string | null>(localStorage.getItem("token"))
   const [isLoading, setIsLoading] = useState(true)
+  const [viewMode, setViewMode] = useState<ViewMode>("default")
 
   const logout = useCallback(() => {
     localStorage.removeItem("token")
     setToken(null)
     setUser(null)
+    setViewMode("default")
   }, [])
 
   useEffect(() => {
@@ -53,6 +62,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem("token", res.token)
     setToken(res.token)
     setUser(res.user)
+    setViewMode("default")
   }
 
   const loginTeacher = async (email: string, password: string) => {
@@ -63,17 +73,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem("token", res.token)
     setToken(res.token)
     setUser(res.user)
+    setViewMode("default")
   }
 
-  const isTeacher = user?.role === "teacher" || user?.role === "admin"
-  const isAdmin = user?.role === "admin"
-  const isStudent = user?.role === "student"
+  const actualRole = user?.role ?? null
+  const canSwitchView = actualRole === "teacher" || actualRole === "admin"
+
+  // When viewMode is "student", pretend to be a student for UI purposes
+  const isStudentView = viewMode === "student" && canSwitchView
+  const isTeacher = !isStudentView && (user?.role === "teacher" || user?.role === "admin")
+  const isAdmin = !isStudentView && user?.role === "admin"
+  const isStudent = user?.role === "student" || isStudentView
 
   return (
     <AuthContext.Provider value={{
       user, token, isLoading,
       loginStudent, loginTeacher, logout,
       isTeacher, isAdmin, isStudent,
+      viewMode, setViewMode, canSwitchView, actualRole,
     }}>
       {children}
     </AuthContext.Provider>
