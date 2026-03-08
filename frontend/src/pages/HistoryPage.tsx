@@ -1,11 +1,49 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
-import { ArrowLeft, Clock, Trophy, TrendingUp } from "lucide-react"
+import { ArrowLeft, Clock, Trophy, TrendingUp, Play, Pause, Volume2 } from "lucide-react"
 import { api } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import type { PracticeSession } from "@/types/practice"
+
+function MiniPlayer({ sessionId }: { sessionId: number }) {
+  const [playing, setPlaying] = useState(false)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+
+  const toggle = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!audioRef.current) {
+      const token = localStorage.getItem("token")
+      fetch(`/api/practice/session/${sessionId}/audio`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then(res => res.blob())
+        .then(blob => {
+          const url = URL.createObjectURL(blob)
+          const audio = new Audio(url)
+          audio.addEventListener("ended", () => setPlaying(false))
+          audioRef.current = audio
+          audio.play()
+          setPlaying(true)
+        })
+        .catch(() => {})
+      return
+    }
+    if (playing) {
+      audioRef.current.pause()
+    } else {
+      audioRef.current.play()
+    }
+    setPlaying(!playing)
+  }
+
+  return (
+    <button onClick={toggle} className="p-1.5 rounded-md hover:bg-muted transition-colors cursor-pointer" title="Play recording">
+      {playing ? <Pause className="h-4 w-4 text-primary" /> : <Play className="h-4 w-4 text-muted-foreground" />}
+    </button>
+  )
+}
 
 export default function HistoryPage() {
   const navigate = useNavigate()
@@ -78,6 +116,9 @@ export default function HistoryPage() {
                     </div>
 
                     <div className="flex items-center gap-3">
+                      {(session as any).has_audio && (
+                        <MiniPlayer sessionId={session.id} />
+                      )}
                       {overallScore !== undefined && (
                         <span className={`text-2xl font-bold ${getScoreColor(overallScore)}`}>
                           {overallScore}

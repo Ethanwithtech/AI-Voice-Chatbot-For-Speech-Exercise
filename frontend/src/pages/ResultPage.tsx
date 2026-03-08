@@ -1,12 +1,69 @@
 import { useState, useEffect } from "react"
 import { useParams, useNavigate } from "react-router-dom"
-import { ArrowLeft, Loader2 } from "lucide-react"
+import { ArrowLeft, Loader2, Play, Pause, Volume2 } from "lucide-react"
 import { api } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { TranscriptDisplay } from "@/components/TranscriptDisplay"
 import { FeedbackPanel } from "@/components/FeedbackPanel"
 import { ProsodyChart } from "@/components/ProsodyChart"
 import { Badge } from "@/components/ui/badge"
+import { Card, CardContent } from "@/components/ui/card"
+
+function AudioPlayer({ sessionId }: { sessionId: string }) {
+  const [audioUrl, setAudioUrl] = useState<string | null>(null)
+  const [playing, setPlaying] = useState(false)
+  const [audioEl, setAudioEl] = useState<HTMLAudioElement | null>(null)
+  const [error, setError] = useState(false)
+
+  useEffect(() => {
+    const token = localStorage.getItem("token")
+    fetch(`/api/practice/session/${sessionId}/audio`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(res => {
+        if (!res.ok) throw new Error("No audio")
+        return res.blob()
+      })
+      .then(blob => {
+        const url = URL.createObjectURL(blob)
+        setAudioUrl(url)
+        const audio = new Audio(url)
+        audio.addEventListener("ended", () => setPlaying(false))
+        setAudioEl(audio)
+      })
+      .catch(() => setError(true))
+
+    return () => {
+      if (audioUrl) URL.revokeObjectURL(audioUrl)
+      audioEl?.pause()
+    }
+  }, [sessionId])
+
+  if (error) return null
+
+  const toggle = () => {
+    if (!audioEl) return
+    if (playing) {
+      audioEl.pause()
+    } else {
+      audioEl.play()
+    }
+    setPlaying(!playing)
+  }
+
+  return (
+    <Card>
+      <CardContent className="p-4 flex items-center gap-3">
+        <Volume2 className="h-4 w-4 text-muted-foreground shrink-0" />
+        <span className="text-sm font-medium">Student Recording</span>
+        <Button size="sm" variant="outline" onClick={toggle} disabled={!audioEl} className="ml-auto gap-1.5">
+          {playing ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+          {playing ? "Pause" : "Play"}
+        </Button>
+      </CardContent>
+    </Card>
+  )
+}
 
 export default function ResultPage() {
   const { sessionId } = useParams()
@@ -89,6 +146,9 @@ export default function ResultPage() {
         </div>
 
         <div className="space-y-6">
+          {sessionId && session.has_audio && (
+            <AudioPlayer sessionId={sessionId} />
+          )}
           <TranscriptDisplay
             transcript={session.transcript || ""}
             errors={errors}

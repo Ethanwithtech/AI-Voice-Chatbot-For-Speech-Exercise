@@ -1,13 +1,29 @@
 import json
 import asyncio
+import logging
 from typing import AsyncGenerator, Optional
 import fastapi_poe as fp
 from app.config import settings
 from app.prompts.speech_feedback import SPEECH_FEEDBACK_SYSTEM_PROMPT, build_feedback_prompt
 
+logger = logging.getLogger(__name__)
+
+# Simple token counter - rough estimate based on chars
+_last_token_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+
+
+def get_last_token_usage() -> dict:
+    return _last_token_usage.copy()
+
+
+def _estimate_tokens(text: str) -> int:
+    """Rough token estimate: ~4 chars per token for English."""
+    return max(1, len(text) // 4)
+
 
 async def _get_poe_response(messages: list[fp.ProtocolMessage]) -> str:
     """Get a complete response from Poe API."""
+    global _last_token_usage
     response_text = ""
     async for partial in fp.get_bot_response(
         messages=messages,
@@ -15,6 +31,18 @@ async def _get_poe_response(messages: list[fp.ProtocolMessage]) -> str:
         api_key=settings.POE_API_KEY,
     ):
         response_text += partial.text
+
+    # Estimate token usage
+    prompt_text = " ".join(m.content for m in messages)
+    prompt_tokens = _estimate_tokens(prompt_text)
+    completion_tokens = _estimate_tokens(response_text)
+    _last_token_usage = {
+        "prompt_tokens": prompt_tokens,
+        "completion_tokens": completion_tokens,
+        "total_tokens": prompt_tokens + completion_tokens,
+    }
+    logger.info(f"[LLM] Token usage estimate: prompt={prompt_tokens}, completion={completion_tokens}, total={prompt_tokens + completion_tokens}")
+
     return response_text
 
 
