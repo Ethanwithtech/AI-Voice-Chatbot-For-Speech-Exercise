@@ -1,8 +1,37 @@
+import logging
 import httpx
 from app.config import settings
 
+logger = logging.getLogger(__name__)
+
+
+def _get_stt_engine() -> str:
+    """Determine which STT engine to use."""
+    engine = settings.STT_ENGINE.lower()
+
+    if engine == "auto":
+        if settings.ELEVENLABS_API_KEY:
+            return "elevenlabs"
+        else:
+            logger.info("ELEVENLABS_API_KEY not set, using local Whisper")
+            return "whisper_local"
+
+    return engine
+
 
 async def transcribe_audio(audio_path: str) -> dict:
+    """Transcribe audio using the configured STT engine."""
+    engine = _get_stt_engine()
+
+    if engine == "elevenlabs":
+        return await _transcribe_elevenlabs(audio_path)
+    elif engine == "whisper_local":
+        return _transcribe_whisper_local(audio_path)
+    else:
+        raise ValueError(f"Unknown STT engine: {engine}")
+
+
+async def _transcribe_elevenlabs(audio_path: str) -> dict:
     """Transcribe audio using ElevenLabs Scribe v2 API."""
     url = "https://api.elevenlabs.io/v1/speech-to-text"
     headers = {
@@ -40,7 +69,6 @@ async def transcribe_audio(audio_path: str) -> dict:
                 "end": w.get("end", 0),
             })
 
-    # Estimate duration from last word end time
     duration = 0
     if word_timestamps:
         duration = word_timestamps[-1]["end"]
@@ -50,3 +78,9 @@ async def transcribe_audio(audio_path: str) -> dict:
         "word_timestamps": word_timestamps,
         "duration": duration,
     }
+
+
+def _transcribe_whisper_local(audio_path: str) -> dict:
+    """Transcribe audio using local OpenAI Whisper model."""
+    from app.services.whisper_local_service import transcribe_audio_local
+    return transcribe_audio_local(audio_path)

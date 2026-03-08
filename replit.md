@@ -17,11 +17,12 @@ AI-powered speech practice and assessment platform for HKBU. Students can practi
 - **Framework**: React 18 + TypeScript + Vite
 - **UI**: Tailwind CSS + shadcn/ui
 - **Build output**: `frontend/dist/` (served by backend)
-- **Rebuild**: `cd frontend && npx vite build`
+- **Rebuild**: `cd frontend && npm install && npm run build`
+- **Note**: Requires `@types/node` dev dependency for TypeScript build
 
 ### Key Services
-- **LLM**: Poe API (GPT-5 default, overridden to GPT-4o-Mini via env) for speech feedback
-- **STT**: ElevenLabs API for speech-to-text
+- **LLM**: Poe API (GPT-4o-Mini) for speech feedback
+- **STT**: Dual-engine — ElevenLabs Scribe v2 (if API key set) or local OpenAI Whisper (free fallback)
 - **Audio Analysis**: praat-parselmouth for prosody analysis (with fallback when unavailable)
 
 ## Environment Variables
@@ -29,16 +30,24 @@ AI-powered speech practice and assessment platform for HKBU. Students can practi
 - `POE_API_KEY` — Poe API key for LLM access
 - `POE_BOT_NAME` — Poe bot name (GPT-4o-Mini)
 - `JWT_SECRET` — JWT signing secret
-- `ELEVENLABS_API_KEY` — ElevenLabs API key (optional, for STT)
+- `ELEVENLABS_API_KEY` — ElevenLabs API key (optional; without it, uses local Whisper)
+- `STT_ENGINE` — `auto` (default), `elevenlabs`, or `whisper_local`
+- `WHISPER_MODEL_SIZE` — Whisper model size: `tiny` (75MB), `base` (150MB), `small`, `medium`
 
 ## Startup
 Single workflow: `cd backend && python -m uvicorn app.main:app --host 0.0.0.0 --port 5000`
 
 ## API Verification
-- `GET /api/health` → `{"status": "ok", "message": "AI Speech Coach API is running"}`
+- `GET /api/health` → `{"status":"ok","stt_engine":"whisper_local"}` (or `"elevenlabs"` if key set)
 - `POST /api/auth/teacher-login` with `{"email":"simonwang@hkbu.edu.hk","password":"admin123456"}` → returns JWT token
 
+## Dependencies
+- Python: torch (CPU-only, v2.1.2+cpu), openai-whisper (v20250625), praat-parselmouth, fastapi, etc.
+- Node: React 18, Vite 5, Tailwind CSS, shadcn/ui, @types/node
+- System: ffmpeg (for audio processing)
+
 ## Notes
-- The `parselmouth` package in requirements.txt uses `praat-parselmouth` (the correct PyPI package name)
+- The `openai-whisper==20240930` pin in requirements.txt fails due to pkg_resources; v20250625 installed instead (compatible)
+- torch installed as CPU-only variant to save space (~185MB vs ~2GB GPU version)
 - prosody_service.py has a fallback mode when parselmouth is not available
 - Admin user auto-created: simonwang@hkbu.edu.hk / admin123456

@@ -27,7 +27,14 @@ app.add_middleware(
 
 @app.get("/api/health")
 async def health_check():
-    return {"status": "ok", "message": "AI Speech Coach API is running"}
+    stt_engine = "elevenlabs" if settings.ELEVENLABS_API_KEY else "whisper_local"
+    if settings.STT_ENGINE != "auto":
+        stt_engine = settings.STT_ENGINE
+    return {
+        "status": "ok",
+        "message": "AI Speech Coach API is running",
+        "stt_engine": stt_engine,
+    }
 
 
 app.include_router(auth_router.router, prefix="/api/auth", tags=["Authentication"])

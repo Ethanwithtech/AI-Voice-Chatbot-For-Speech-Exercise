@@ -72,20 +72,20 @@ export function AudioRecorder({
 
   if (state === "recording") {
     return (
-      <div className="flex flex-col items-center justify-center py-8 gap-6">
+      <div className="flex flex-col items-center justify-center py-6 gap-4">
         <div className="relative">
           <button
             onClick={onStop}
-            className="w-24 h-24 rounded-full bg-red-500 hover:bg-red-600 flex items-center justify-center shadow-lg transition-all cursor-pointer active:scale-95"
+            className="w-20 h-20 rounded-full bg-red-500 hover:bg-red-600 flex items-center justify-center shadow-lg transition-all cursor-pointer active:scale-95"
           >
-            <Square className="h-8 w-8 text-white fill-white" />
+            <Square className="h-7 w-7 text-white fill-white" />
           </button>
-          <div className="absolute inset-0 w-24 h-24 rounded-full border-4 border-red-400/50 animate-pulse-ring" />
+          <div className="absolute inset-0 w-20 h-20 rounded-full border-4 border-red-400/50 animate-pulse-ring" />
         </div>
 
         <div className="text-center">
           <p className="text-3xl font-mono font-bold text-foreground">{formatDuration(duration)}</p>
-          <p className="text-sm text-red-500 font-medium mt-1 flex items-center gap-1.5">
+          <p className="text-sm text-red-500 font-medium mt-1 flex items-center justify-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
             Recording
           </p>
@@ -94,9 +94,19 @@ export function AudioRecorder({
         <canvas
           ref={canvasRef}
           width={400}
-          height={100}
+          height={80}
           className="w-full max-w-md rounded-lg bg-slate-950/5 dark:bg-slate-950/50"
         />
+
+        <Button
+          variant="destructive"
+          size="lg"
+          onClick={onStop}
+          className="mt-2 px-8"
+        >
+          <Square className="h-4 w-4 mr-2" />
+          Stop Recording
+        </Button>
       </div>
     )
   }

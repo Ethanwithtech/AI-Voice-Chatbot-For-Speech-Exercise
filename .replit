@@ -53,3 +53,5 @@ build = ["bash", "-c", "cd frontend && npm install --silent && npm run build && 
 POE_API_KEY = "wu6NGz2ZIYHRBJDkST7i3jK_sAdmWAMVOg_ImDVgmiY"
 JWT_SECRET = "speech-coach-secret-2025-hkbu"
 POE_BOT_NAME = "GPT-4o-Mini"
+STT_ENGINE = "auto"
+WHISPER_MODEL_SIZE = "tiny"

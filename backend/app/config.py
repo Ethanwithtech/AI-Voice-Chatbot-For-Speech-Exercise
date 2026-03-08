@@ -5,6 +5,10 @@ load_dotenv()
 
 
 class Settings:
+    # STT Engine: "elevenlabs" or "whisper_local"
+    # If ELEVENLABS_API_KEY is not set, automatically falls back to whisper_local
+    STT_ENGINE: str = os.getenv("STT_ENGINE", "auto")
+
     # ElevenLabs STT
     ELEVENLABS_API_KEY: str = os.getenv("ELEVENLABS_API_KEY", "")
 
