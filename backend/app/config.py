@@ -10,7 +10,7 @@ class Settings:
 
     # Poe API (for LLM)
     POE_API_KEY: str = os.getenv("POE_API_KEY", "")
-    POE_BOT_NAME: str = os.getenv("POE_BOT_NAME", "GPT-4o")
+    POE_BOT_NAME: str = os.getenv("POE_BOT_NAME", "GPT-4o-Mini")
 
     # JWT
     JWT_SECRET: str = os.getenv("JWT_SECRET", "change-this-secret-key-in-production")
