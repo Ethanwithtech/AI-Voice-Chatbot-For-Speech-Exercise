@@ -21,9 +21,25 @@ AI-powered speech practice and assessment platform for HKBU. Students can practi
 - **Note**: Requires `@types/node` dev dependency for TypeScript build
 
 ### Key Services
-- **LLM**: Poe API (GPT-4o-Mini) for speech feedback
+- **LLM**: Poe API (GPT-4o-Mini) for speech feedback, with token usage tracking
 - **STT**: Dual-engine — ElevenLabs Scribe v2 (if API key set) or local OpenAI Whisper (free fallback)
 - **Audio Analysis**: praat-parselmouth for prosody analysis (with fallback when unavailable)
+- **Audio Storage**: Student recordings saved as binary data in `practice_sessions.audio_data`
+
+### Database Tables
+- `users` — students and teachers/admins
+- `exercises` — practice exercises with reference text
+- `practice_sessions` — session records with transcript, duration, audio_data (binary), audio_content_type
+- `practice_results` — scores, prosody metrics, LLM feedback per session
+- `token_usage` — tracks estimated token usage per LLM API call
+
+### Key API Endpoints
+- `GET /api/health` — health check with STT engine info
+- `POST /api/auth/teacher-login` — teacher/admin login
+- `POST /api/practice/analyze` — upload audio, get speech analysis
+- `GET /api/practice/session/{id}/audio` — stream back recorded audio for playback
+- `GET /api/practice/history` — list practice sessions
+- `GET /api/users/token-stats` — total tokens, sessions, students, recent usage
 
 ## Environment Variables
 - `DATABASE_URL` — PostgreSQL connection string (auto-set by Replit)
@@ -40,6 +56,7 @@ Single workflow: `cd backend && python -m uvicorn app.main:app --host 0.0.0.0 --
 ## API Verification
 - `GET /api/health` → `{"status":"ok","stt_engine":"whisper_local"}` (or `"elevenlabs"` if key set)
 - `POST /api/auth/teacher-login` with `{"email":"simonwang@hkbu.edu.hk","password":"admin123456"}` → returns JWT token
+- `GET /api/users/token-stats` → `{"total_tokens":0,"total_sessions":N,"total_students":N,...}`
 
 ## Dependencies
 - Python: torch (CPU-only, v2.1.2+cpu), openai-whisper (v20250625), praat-parselmouth, fastapi, etc.
@@ -47,7 +64,9 @@ Single workflow: `cd backend && python -m uvicorn app.main:app --host 0.0.0.0 --
 - System: ffmpeg (for audio processing)
 
 ## Notes
-- The `openai-whisper==20240930` pin in requirements.txt fails due to pkg_resources; v20250625 installed instead (compatible)
+- The `openai-whisper==20240930` pin in requirements.txt fails due to pkg_resources; v20250625 installed instead (compatible). requirements.txt now uses `>=20240930`.
 - torch installed as CPU-only variant to save space (~185MB vs ~2GB GPU version)
 - prosody_service.py has a fallback mode when parselmouth is not available
 - Admin user auto-created: simonwang@hkbu.edu.hk / admin123456
+- `logging.basicConfig(level=logging.INFO)` added to main.py so app-level logger output appears in uvicorn logs
+- Content type validation strips parameters (e.g., `audio/webm;codecs=opus` → `audio/webm`) before checking allowed types

@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends
 from typing import List
-from app.database import get_db, User, PracticeSession
+from sqlalchemy import func
+from app.database import get_db, User, PracticeSession, TokenUsage
 from app.auth import require_teacher, require_admin, user_to_dict
 from app.models.user import UserResponse
 
@@ -81,6 +82,7 @@ async def get_user_sessions(user_id: int, teacher: dict = Depends(require_teache
                 "exercise_id": s.exercise_id,
                 "transcript": s.transcript,
                 "duration_seconds": s.duration_seconds,
+                "has_audio": s.audio_data is not None and len(s.audio_data) > 0,
                 "created_at": s.created_at.isoformat() if s.created_at else None,
                 "practice_results": [practice_result] if practice_result else [],
                 "exercise_title": exercise_title,
@@ -96,6 +98,60 @@ async def get_user_sessions(user_id: int, teacher: dict = Depends(require_teache
                 created_at=user.created_at.isoformat() if user.created_at else None,
             ),
             "sessions": sessions_data,
+        }
+    finally:
+        db.close()
+
+
+@router.get("/token-stats")
+async def get_token_stats(teacher: dict = Depends(require_teacher)):
+    """Get token usage statistics for the teacher dashboard."""
+    db = get_db()
+    try:
+        # Total tokens used
+        total_result = db.query(func.sum(TokenUsage.tokens_used)).scalar()
+        total_tokens = total_result or 0
+
+        # Total sessions count
+        total_sessions = db.query(func.count(PracticeSession.id)).scalar() or 0
+
+        # Total students
+        total_students = db.query(func.count(User.id)).filter(User.role == "student").scalar() or 0
+
+        # Token usage by service
+        by_service = db.query(
+            TokenUsage.service,
+            func.sum(TokenUsage.tokens_used),
+            func.count(TokenUsage.id),
+        ).group_by(TokenUsage.service).all()
+
+        services = []
+        for service_name, tokens, count in by_service:
+            services.append({
+                "service": service_name,
+                "total_tokens": tokens or 0,
+                "request_count": count,
+            })
+
+        # Recent usage (last 10)
+        recent = db.query(TokenUsage).order_by(TokenUsage.created_at.desc()).limit(10).all()
+        recent_data = []
+        for r in recent:
+            user = db.query(User).filter(User.id == r.user_id).first()
+            recent_data.append({
+                "id": r.id,
+                "user_name": user.name if user else "Unknown",
+                "service": r.service,
+                "tokens_used": r.tokens_used,
+                "created_at": r.created_at.isoformat() if r.created_at else None,
+            })
+
+        return {
+            "total_tokens": total_tokens,
+            "total_sessions": total_sessions,
+            "total_students": total_students,
+            "by_service": services,
+            "recent_usage": recent_data,
         }
     finally:
         db.close()

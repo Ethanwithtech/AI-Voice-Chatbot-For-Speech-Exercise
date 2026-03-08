@@ -2,15 +2,16 @@ import json
 import logging
 import traceback
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form
+from fastapi.responses import Response
 from typing import Optional, List
-from app.database import get_db, Exercise, PracticeSession, PracticeResult
+from app.database import get_db, Exercise, PracticeSession, PracticeResult, TokenUsage
 from app.auth import get_current_user
 from app.services.audio_service import save_upload, convert_to_wav, get_audio_duration, cleanup_files
 from app.services.whisper_service import transcribe_audio
 from app.services.prosody_service import analyze_prosody, evaluate_fluency
 from app.services.pronunciation_service import detect_pronunciation_issues, calculate_pronunciation_score
 from app.services.readaloud_service import detect_read_aloud
-from app.services.llm_service import generate_feedback
+from app.services.llm_service import generate_feedback, get_last_token_usage
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -126,6 +127,8 @@ async def analyze_speech(
         session = PracticeSession(
             student_id=current_user["id"],
             exercise_id=exercise_id,
+            audio_data=file_bytes,
+            audio_content_type=content_type_base or "audio/webm",
             transcript=transcript,
             duration_seconds=duration,
         )
@@ -153,6 +156,19 @@ async def analyze_speech(
         )
         db.add(practice_result)
         db.commit()
+
+        # Record token usage
+        token_usage = get_last_token_usage()
+        if token_usage["total_tokens"] > 0:
+            usage_record = TokenUsage(
+                user_id=current_user["id"],
+                session_id=session.id,
+                service="poe_llm",
+                tokens_used=token_usage["total_tokens"],
+                detail=json.dumps(token_usage),
+            )
+            db.add(usage_record)
+            db.commit()
 
         cleanup_files(upload_path, wav_path)
         logger.info(f"[analyze] Analysis complete, session_id={session.id}")
@@ -215,6 +231,7 @@ async def get_practice_history(current_user: dict = Depends(get_current_user)):
                 "exercise_id": s.exercise_id,
                 "transcript": s.transcript,
                 "duration_seconds": s.duration_seconds,
+                "has_audio": s.audio_data is not None and len(s.audio_data) > 0,
                 "created_at": s.created_at.isoformat() if s.created_at else None,
                 "result": practice_result,
                 "exercise_title": exercise_title,
@@ -278,9 +295,38 @@ async def get_session_detail(session_id: int, current_user: dict = Depends(get_c
             "exercise_id": session.exercise_id,
             "transcript": session.transcript,
             "duration_seconds": session.duration_seconds,
+            "has_audio": session.audio_data is not None and len(session.audio_data) > 0,
             "created_at": session.created_at.isoformat() if session.created_at else None,
             "practice_results": [practice_result] if practice_result else [],
             "exercises": exercise_data,
         }
+    finally:
+        db.close()
+
+
+@router.get("/session/{session_id}/audio")
+async def get_session_audio(session_id: int, current_user: dict = Depends(get_current_user)):
+    """Stream audio data for a practice session. Teachers can access any, students only their own."""
+    db = get_db()
+    try:
+        session = db.query(PracticeSession).filter(PracticeSession.id == session_id).first()
+
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+
+        if current_user["role"] == "student" and session.student_id != current_user["id"]:
+            raise HTTPException(status_code=403, detail="Access denied")
+
+        if not session.audio_data:
+            raise HTTPException(status_code=404, detail="No audio recording available")
+
+        content_type = session.audio_content_type or "audio/webm"
+        ext_map = {"audio/webm": ".webm", "audio/wav": ".wav", "audio/mp3": ".mp3", "audio/mpeg": ".mp3", "audio/ogg": ".ogg", "audio/mp4": ".mp4"}
+        ext = ext_map.get(content_type, ".webm")
+        return Response(
+            content=session.audio_data,
+            media_type=content_type,
+            headers={"Content-Disposition": f"inline; filename=recording_{session_id}{ext}"},
+        )
     finally:
         db.close()

@@ -1,0 +1,56 @@
+The new features ARE on GitHub (commit 6609065). The previous git pull failed silently. Let me give you the exact files to update. Please run these shell commands to download and overwrite each changed file directly from GitHub raw:
+
+cd /home/runner/workspace
+
+# 1. Database model (new audio_data column + TokenUsage table)
+curl -sL "https://raw.githubusercontent.com/Ethanwithtech/AI-Voice-Chatbot-For-Speech-Exercise/main/backend/app/database.py" -o backend/app/database.py
+
+# 2. Practice router (audio save + playback endpoint + token recording)
+curl -sL "https://raw.githubusercontent.com/Ethanwithtech/AI-Voice-Chatbot-For-Speech-Exercise/main/backend/app/routers/practice_router.py" -o backend/app/routers/practice_router.py
+
+# 3. User router (token-stats API + has_audio in sessions)
+curl -sL "https://raw.githubusercontent.com/Ethanwithtech/AI-Voice-Chatbot-For-Speech-Exercise/main/backend/app/routers/user_router.py" -o backend/app/routers/user_router.py
+
+# 4. LLM service (token usage tracking)
+curl -sL "https://raw.githubusercontent.com/Ethanwithtech/AI-Voice-Chatbot-For-Speech-Exercise/main/backend/app/services/llm_service.py" -o backend/app/services/llm_service.py
+
+# 5. Config (STT_ENGINE setting)
+curl -sL "https://raw.githubusercontent.com/Ethanwithtech/AI-Voice-Chatbot-For-Speech-Exercise/main/backend/app/config.py" -o backend/app/config.py
+
+# 6. Whisper service (dual engine support)
+curl -sL "https://raw.githubusercontent.com/Ethanwithtech/AI-Voice-Chatbot-For-Speech-Exercise/main/backend/app/services/whisper_service.py" -o backend/app/services/whisper_service.py
+
+# 7. Local whisper service (new file)
+curl -sL "https://raw.githubusercontent.com/Ethanwithtech/AI-Voice-Chatbot-For-Speech-Exercise/main/backend/app/services/whisper_local_service.py" -o backend/app/services/whisper_local_service.py
+
+# 8. Main.py
+curl -sL "https://raw.githubusercontent.com/Ethanwithtech/AI-Voice-Chatbot-For-Speech-Exercise/main/backend/app/main.py" -o backend/app/main.py
+
+# 9. Frontend - Dashboard with token stats
+curl -sL "https://raw.githubusercontent.com/Ethanwithtech/AI-Voice-Chatbot-For-Speech-Exercise/main/frontend/src/pages/DashboardPage.tsx" -o frontend/src/pages/DashboardPage.tsx
+
+# 10. Frontend - ResultPage with audio player
+curl -sL "https://raw.githubusercontent.com/Ethanwithtech/AI-Voice-Chatbot-For-Speech-Exercise/main/frontend/src/pages/ResultPage.tsx" -o frontend/src/pages/ResultPage.tsx
+
+# 11. Frontend - HistoryPage with mini player
+curl -sL "https://raw.githubusercontent.com/Ethanwithtech/AI-Voice-Chatbot-For-Speech-Exercise/main/frontend/src/pages/HistoryPage.tsx" -o frontend/src/pages/HistoryPage.tsx
+
+# 12. Frontend - AudioRecorder with stop button fix
+curl -sL "https://raw.githubusercontent.com/Ethanwithtech/AI-Voice-Chatbot-For-Speech-Exercise/main/frontend/src/components/AudioRecorder.tsx" -o frontend/src/components/AudioRecorder.tsx
+
+# 13. Requirements
+curl -sL "https://raw.githubusercontent.com/Ethanwithtech/AI-Voice-Chatbot-For-Speech-Exercise/main/backend/requirements.txt" -o backend/requirements.txt
+
+After downloading all files, verify key changes exist:
+grep "audio_data" backend/app/database.py
+grep "TokenUsage" backend/app/database.py
+grep "token-stats" backend/app/routers/user_router.py
+grep "get_session_audio" backend/app/routers/practice_router.py
+
+Then rebuild and restart:
+cd frontend && npm run build && cd ..
+bash start.sh
+
+Verify:
+- GET /api/health should show stt_engine
+- Teacher dashboard should show stat cards (Total Tokens, Total Sessions, Total Students)

@@ -1,5 +1,5 @@
 import os
-from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean, Text, DateTime, ForeignKey
+from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean, Text, DateTime, ForeignKey, LargeBinary
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
@@ -66,6 +66,8 @@ class PracticeSession(Base):
     student_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     exercise_id = Column(Integer, ForeignKey("exercises.id", ondelete="SET NULL"), nullable=True)
     audio_url = Column(Text, nullable=True)
+    audio_data = Column(LargeBinary, nullable=True)
+    audio_content_type = Column(String(100), nullable=True, default="audio/webm")
     transcript = Column(Text, nullable=True)
     duration_seconds = Column(Float, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -98,6 +100,21 @@ class PracticeResult(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     session = relationship("PracticeSession", back_populates="results")
+
+
+class TokenUsage(Base):
+    __tablename__ = "token_usage"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    session_id = Column(Integer, ForeignKey("practice_sessions.id", ondelete="SET NULL"), nullable=True)
+    service = Column(String(50), nullable=False)  # "poe_llm", "whisper_local", "elevenlabs"
+    tokens_used = Column(Integer, nullable=True)
+    estimated_cost = Column(Float, nullable=True, default=0.0)
+    detail = Column(Text, nullable=True)  # JSON string with extra info
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    user = relationship("User")
 
 
 def init_db():
