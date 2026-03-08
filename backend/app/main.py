@@ -1,8 +1,9 @@
 import os
 import bcrypt
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from app.config import settings
 from app.database import init_db, get_db, User
 from app.routers import auth_router, exercise_router, practice_router, user_router
@@ -23,15 +24,37 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.get("/api/health")
+async def health_check():
+    return {"status": "ok", "message": "AI Speech Coach API is running"}
+
+
 app.include_router(auth_router.router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(exercise_router.router, prefix="/api/exercises", tags=["Exercises"])
 app.include_router(practice_router.router, prefix="/api/practice", tags=["Practice"])
 app.include_router(user_router.router, prefix="/api/users", tags=["Users"])
 
-# Serve frontend static files if available
+# Serve frontend - mount static assets separately, handle SPA routing manually
 frontend_dist = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "frontend", "dist")
 if os.path.exists(frontend_dist):
-    app.mount("/", StaticFiles(directory=frontend_dist, html=True), name="frontend")
+    # Serve static assets (JS, CSS, images) from /assets
+    assets_dir = os.path.join(frontend_dist, "assets")
+    if os.path.exists(assets_dir):
+        app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+
+    # SPA catch-all: serve index.html for all non-API, non-asset routes
+    @app.get("/{full_path:path}")
+    async def serve_frontend(request: Request, full_path: str):
+        # Don't serve frontend for API routes
+        if full_path.startswith("api/"):
+            return {"detail": "Not found"}
+        # Try to serve the exact file first
+        file_path = os.path.join(frontend_dist, full_path)
+        if full_path and os.path.isfile(file_path):
+            return FileResponse(file_path)
+        # Otherwise serve index.html (SPA routing)
+        return FileResponse(os.path.join(frontend_dist, "index.html"))
 
 
 @app.on_event("startup")
@@ -65,8 +88,3 @@ def _ensure_admin():
             db.commit()
     finally:
         db.close()
-
-
-@app.get("/api/health")
-async def health_check():
-    return {"status": "ok", "message": "AI Speech Coach API is running"}
