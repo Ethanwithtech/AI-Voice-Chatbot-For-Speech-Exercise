@@ -1,4 +1,6 @@
 import json
+import traceback
+import logging
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form
 from typing import Optional, List
 from app.database import get_db, Exercise, PracticeSession, PracticeResult
@@ -10,6 +12,8 @@ from app.services.pronunciation_service import detect_pronunciation_issues, calc
 from app.services.readaloud_service import detect_read_aloud
 from app.services.llm_service import generate_feedback
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
 
 
@@ -19,15 +23,20 @@ async def analyze_speech(
     exercise_id: Optional[int] = Form(None),
     current_user: dict = Depends(get_current_user),
 ):
+    logger.info(f"Received analyze request, exercise_id={exercise_id}, content_type={audio.content_type}, filename={audio.filename}")
+
     if current_user["role"] not in ("student", "admin", "teacher"):
         raise HTTPException(status_code=403, detail="Access denied")
 
     file_bytes = await audio.read()
+    logger.info(f"Audio file size: {len(file_bytes)} bytes")
     if len(file_bytes) > 50 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="File too large (max 50MB)")
 
     allowed_types = ["audio/webm", "audio/wav", "audio/mp3", "audio/mpeg", "audio/ogg", "audio/mp4"]
-    if audio.content_type and audio.content_type not in allowed_types:
+    content_type_base = (audio.content_type or "").split(";")[0].strip()
+    if content_type_base and content_type_base not in allowed_types:
+        logger.warning(f"Rejected content type: {audio.content_type} (base: {content_type_base})")
         raise HTTPException(status_code=400, detail=f"Unsupported audio format: {audio.content_type}")
 
     reference_text = None
@@ -35,6 +44,8 @@ async def analyze_speech(
     difficulty = "medium"
 
     db = get_db()
+    upload_path = None
+    wav_path = None
     try:
         if exercise_id:
             ex = db.query(Exercise).filter(Exercise.id == exercise_id).first()
@@ -44,16 +55,21 @@ async def analyze_speech(
                 difficulty = ex.difficulty or "medium"
 
         upload_path = save_upload(file_bytes, audio.filename or "audio.webm")
+        logger.info(f"Saved upload to {upload_path}")
         wav_path = convert_to_wav(upload_path)
+        logger.info(f"Converted to WAV: {wav_path}")
 
+        logger.info("Starting transcription...")
         whisper_result = await transcribe_audio(wav_path)
         transcript = whisper_result["transcript"]
         word_timestamps = whisper_result["word_timestamps"]
+        logger.info(f"Transcription complete: {len(transcript)} chars, {len(word_timestamps)} words")
 
         if not transcript.strip():
             cleanup_files(upload_path, wav_path)
             raise HTTPException(status_code=400, detail="No speech detected in the audio")
 
+        logger.info("Analyzing prosody...")
         prosody = analyze_prosody(wav_path, word_timestamps)
         fluency_eval = evaluate_fluency(prosody)
 
@@ -65,6 +81,7 @@ async def analyze_speech(
         prosody_data = prosody.dict()
         pron_issues_data = [i.dict() for i in pronunciation_issues]
 
+        logger.info("Generating LLM feedback...")
         llm_feedback = await generate_feedback(
             transcript=transcript,
             reference_text=reference_text,
@@ -141,8 +158,17 @@ async def analyze_speech(
         db.commit()
 
         cleanup_files(upload_path, wav_path)
+        logger.info(f"Analysis complete. Overall score: {overall_score}")
 
         return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Analysis failed: {str(e)}")
+        logger.error(traceback.format_exc())
+        if upload_path or wav_path:
+            cleanup_files(upload_path, wav_path)
+        raise HTTPException(status_code=500, detail="Analysis failed. Please try again.")
     finally:
         db.close()
 

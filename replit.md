@@ -32,7 +32,7 @@ AI-powered speech practice and assessment platform for HKBU. Students can practi
 - `JWT_SECRET` — JWT signing secret
 - `ELEVENLABS_API_KEY` — ElevenLabs API key (optional; without it, uses local Whisper)
 - `STT_ENGINE` — `auto` (default), `elevenlabs`, or `whisper_local`
-- `WHISPER_MODEL_SIZE` — Whisper model size: `tiny` (75MB), `base` (150MB), `small`, `medium`
+- `WHISPER_MODEL_SIZE` — Whisper model size: `tiny` (75MB), `base` (139MB, current), `small`, `medium`
 
 ## Startup
 Single workflow: `cd backend && python -m uvicorn app.main:app --host 0.0.0.0 --port 5000`
