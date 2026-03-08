@@ -1,0 +1,11 @@
+run = "bash start.sh"
+entrypoint = "start.sh"
+
+[env]
+DATABASE_URL = "sqlite:///./data/app.db"
+
+[nix]
+channel = "stable-24_05"
+
+[deployment]
+run = ["bash", "start.sh"]

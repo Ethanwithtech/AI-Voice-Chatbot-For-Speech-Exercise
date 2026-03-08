@@ -1,0 +1,264 @@
+import json
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form
+from typing import Optional, List
+from app.database import get_db, Exercise, PracticeSession, PracticeResult
+from app.auth import get_current_user
+from app.services.audio_service import save_upload, convert_to_wav, get_audio_duration, cleanup_files
+from app.services.whisper_service import transcribe_audio
+from app.services.prosody_service import analyze_prosody, evaluate_fluency
+from app.services.pronunciation_service import detect_pronunciation_issues, calculate_pronunciation_score
+from app.services.readaloud_service import detect_read_aloud
+from app.services.llm_service import generate_feedback
+
+router = APIRouter()
+
+
+@router.post("/analyze")
+async def analyze_speech(
+    audio: UploadFile = File(...),
+    exercise_id: Optional[int] = Form(None),
+    current_user: dict = Depends(get_current_user),
+):
+    if current_user["role"] not in ("student", "admin", "teacher"):
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    file_bytes = await audio.read()
+    if len(file_bytes) > 50 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File too large (max 50MB)")
+
+    allowed_types = ["audio/webm", "audio/wav", "audio/mp3", "audio/mpeg", "audio/ogg", "audio/mp4"]
+    if audio.content_type and audio.content_type not in allowed_types:
+        raise HTTPException(status_code=400, detail=f"Unsupported audio format: {audio.content_type}")
+
+    reference_text = None
+    exercise_type = "free_speech"
+    difficulty = "medium"
+
+    db = get_db()
+    try:
+        if exercise_id:
+            ex = db.query(Exercise).filter(Exercise.id == exercise_id).first()
+            if ex:
+                reference_text = ex.reference_text
+                exercise_type = ex.exercise_type or "free_speech"
+                difficulty = ex.difficulty or "medium"
+
+        upload_path = save_upload(file_bytes, audio.filename or "audio.webm")
+        wav_path = convert_to_wav(upload_path)
+
+        whisper_result = await transcribe_audio(wav_path)
+        transcript = whisper_result["transcript"]
+        word_timestamps = whisper_result["word_timestamps"]
+
+        if not transcript.strip():
+            cleanup_files(upload_path, wav_path)
+            raise HTTPException(status_code=400, detail="No speech detected in the audio")
+
+        prosody = analyze_prosody(wav_path, word_timestamps)
+        fluency_eval = evaluate_fluency(prosody)
+
+        pronunciation_issues = detect_pronunciation_issues(transcript, word_timestamps, reference_text)
+        pronunciation_score = calculate_pronunciation_score(transcript, reference_text, pronunciation_issues)
+
+        is_read_aloud = detect_read_aloud(transcript, reference_text, prosody)
+
+        prosody_data = prosody.dict()
+        pron_issues_data = [i.dict() for i in pronunciation_issues]
+
+        llm_feedback = await generate_feedback(
+            transcript=transcript,
+            reference_text=reference_text,
+            prosody_data=prosody_data,
+            pronunciation_issues=pron_issues_data,
+            exercise_type=exercise_type,
+            difficulty=difficulty,
+        )
+
+        grammar_score = llm_feedback.get("score", 70)
+        fluency_score = fluency_eval["fluency_score"]
+        prosody_score = fluency_eval["prosody_score"]
+
+        overall_score = round(
+            grammar_score * 0.3 +
+            fluency_score * 0.25 +
+            pronunciation_score * 0.25 +
+            prosody_score * 0.2
+        )
+
+        result = {
+            "transcript": transcript,
+            "word_timestamps": word_timestamps,
+            "prosody": prosody_data,
+            "pronunciation_issues": pron_issues_data,
+            "is_read_aloud": is_read_aloud,
+            "scores": {
+                "overall": overall_score,
+                "grammar": grammar_score,
+                "fluency": fluency_score,
+                "pronunciation": pronunciation_score,
+                "prosody": prosody_score,
+            },
+            "errors": llm_feedback.get("grammar_errors", []),
+            "suggestions": llm_feedback.get("suggestions", []),
+            "strengths": llm_feedback.get("strengths", []),
+            "areas_to_improve": llm_feedback.get("areas_to_improve", []),
+            "llm_feedback": llm_feedback.get("overall_assessment", ""),
+            "prosody_feedback": llm_feedback.get("prosody_feedback", ""),
+            "pronunciation_feedback": llm_feedback.get("pronunciation_feedback", ""),
+        }
+
+        duration = get_audio_duration(upload_path)
+
+        session = PracticeSession(
+            student_id=current_user["id"],
+            exercise_id=exercise_id,
+            transcript=transcript,
+            duration_seconds=duration,
+        )
+        db.add(session)
+        db.commit()
+        db.refresh(session)
+
+        practice_result = PracticeResult(
+            session_id=session.id,
+            overall_score=overall_score,
+            grammar_score=grammar_score,
+            fluency_score=fluency_score,
+            pronunciation_score=pronunciation_score,
+            prosody_score=prosody_score,
+            speech_rate=prosody.speech_rate,
+            pause_count=prosody.pause_count,
+            mean_pause_duration=prosody.mean_pause_duration,
+            f0_mean=prosody.f0_mean,
+            f0_std=prosody.f0_std,
+            intonation_index=prosody.intonation_index,
+            is_read_aloud=is_read_aloud,
+            llm_feedback=json.dumps(llm_feedback),
+            errors=json.dumps(result["errors"]),
+            suggestions=json.dumps(result["suggestions"]),
+        )
+        db.add(practice_result)
+        db.commit()
+
+        cleanup_files(upload_path, wav_path)
+
+        return result
+    finally:
+        db.close()
+
+
+@router.get("/history")
+async def get_practice_history(current_user: dict = Depends(get_current_user)):
+    db = get_db()
+    try:
+        query = db.query(PracticeSession)
+
+        if current_user["role"] == "student":
+            query = query.filter(PracticeSession.student_id == current_user["id"])
+
+        sessions = query.order_by(PracticeSession.created_at.desc()).limit(50).all()
+
+        result = []
+        for s in sessions:
+            practice_result = None
+            if s.results:
+                pr = s.results[0]
+                practice_result = {
+                    "id": pr.id,
+                    "overall_score": pr.overall_score,
+                    "grammar_score": pr.grammar_score,
+                    "fluency_score": pr.fluency_score,
+                    "pronunciation_score": pr.pronunciation_score,
+                    "prosody_score": pr.prosody_score,
+                    "speech_rate": pr.speech_rate,
+                    "pause_count": pr.pause_count,
+                    "mean_pause_duration": pr.mean_pause_duration,
+                    "f0_mean": pr.f0_mean,
+                    "f0_std": pr.f0_std,
+                    "intonation_index": pr.intonation_index,
+                    "is_read_aloud": pr.is_read_aloud,
+                    "llm_feedback": pr.llm_feedback,
+                    "errors": pr.errors,
+                    "suggestions": pr.suggestions,
+                    "created_at": pr.created_at.isoformat() if pr.created_at else None,
+                }
+
+            exercise_title = None
+            if s.exercise:
+                exercise_title = s.exercise.title
+
+            result.append({
+                "id": s.id,
+                "student_id": s.student_id,
+                "exercise_id": s.exercise_id,
+                "transcript": s.transcript,
+                "duration_seconds": s.duration_seconds,
+                "created_at": s.created_at.isoformat() if s.created_at else None,
+                "result": practice_result,
+                "exercise_title": exercise_title,
+            })
+
+        return result
+    finally:
+        db.close()
+
+
+@router.get("/session/{session_id}")
+async def get_session_detail(session_id: int, current_user: dict = Depends(get_current_user)):
+    db = get_db()
+    try:
+        session = db.query(PracticeSession).filter(PracticeSession.id == session_id).first()
+
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+
+        if current_user["role"] == "student" and session.student_id != current_user["id"]:
+            raise HTTPException(status_code=403, detail="Access denied")
+
+        practice_result = None
+        if session.results:
+            pr = session.results[0]
+            practice_result = {
+                "id": pr.id,
+                "overall_score": pr.overall_score,
+                "grammar_score": pr.grammar_score,
+                "fluency_score": pr.fluency_score,
+                "pronunciation_score": pr.pronunciation_score,
+                "prosody_score": pr.prosody_score,
+                "speech_rate": pr.speech_rate,
+                "pause_count": pr.pause_count,
+                "mean_pause_duration": pr.mean_pause_duration,
+                "f0_mean": pr.f0_mean,
+                "f0_std": pr.f0_std,
+                "intonation_index": pr.intonation_index,
+                "is_read_aloud": pr.is_read_aloud,
+                "llm_feedback": pr.llm_feedback,
+                "errors": pr.errors,
+                "suggestions": pr.suggestions,
+                "created_at": pr.created_at.isoformat() if pr.created_at else None,
+            }
+
+        exercise_data = None
+        if session.exercise:
+            ex = session.exercise
+            exercise_data = {
+                "id": ex.id,
+                "title": ex.title,
+                "description": ex.description,
+                "reference_text": ex.reference_text,
+                "difficulty": ex.difficulty,
+                "exercise_type": ex.exercise_type,
+            }
+
+        return {
+            "id": session.id,
+            "student_id": session.student_id,
+            "exercise_id": session.exercise_id,
+            "transcript": session.transcript,
+            "duration_seconds": session.duration_seconds,
+            "created_at": session.created_at.isoformat() if session.created_at else None,
+            "practice_results": [practice_result] if practice_result else [],
+            "exercises": exercise_data,
+        }
+    finally:
+        db.close()

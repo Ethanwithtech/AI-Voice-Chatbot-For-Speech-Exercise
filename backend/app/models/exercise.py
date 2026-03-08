@@ -1,0 +1,43 @@
+from pydantic import BaseModel
+from typing import Optional
+from enum import Enum
+
+
+class DifficultyLevel(str, Enum):
+    easy = "easy"
+    medium = "medium"
+    hard = "hard"
+
+
+class ExerciseType(str, Enum):
+    read_aloud = "read_aloud"
+    free_speech = "free_speech"
+    qa = "qa"
+
+
+class CreateExerciseInput(BaseModel):
+    title: str
+    description: str
+    reference_text: Optional[str] = None
+    difficulty: DifficultyLevel = DifficultyLevel.medium
+    exercise_type: ExerciseType = ExerciseType.free_speech
+
+
+class UpdateExerciseInput(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    reference_text: Optional[str] = None
+    difficulty: Optional[DifficultyLevel] = None
+    exercise_type: Optional[ExerciseType] = None
+
+
+class ExerciseResponse(BaseModel):
+    id: int
+    teacher_id: int
+    title: str
+    description: str
+    reference_text: Optional[str] = None
+    difficulty: str
+    exercise_type: str
+    created_at: Optional[str] = None
+    teacher_name: Optional[str] = None
