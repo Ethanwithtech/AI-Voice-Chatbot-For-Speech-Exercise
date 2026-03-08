@@ -1,10 +1,18 @@
 import numpy as np
-import parselmouth
-from parselmouth.praat import call
 from app.models.practice import ProsodyMetrics
+
+try:
+    import parselmouth
+    from parselmouth.praat import call
+    HAS_PARSELMOUTH = True
+except ImportError:
+    HAS_PARSELMOUTH = False
 
 
 def analyze_prosody(wav_path: str, word_timestamps: list = None) -> ProsodyMetrics:
+    if not HAS_PARSELMOUTH:
+        return _fallback_prosody(word_timestamps)
+
     sound = parselmouth.Sound(wav_path)
     total_duration = sound.get_total_duration()
 
@@ -20,7 +28,6 @@ def analyze_prosody(wav_path: str, word_timestamps: list = None) -> ProsodyMetri
 
     intensity = call(sound, "To Intensity", 75, 0.0)
     silences = []
-    dt = intensity.get_time_step()
     threshold = call(intensity, "Get minimum", 0, 0, "Parabolic") + 25
 
     is_silent = False
@@ -73,6 +80,40 @@ def analyze_prosody(wav_path: str, word_timestamps: list = None) -> ProsodyMetri
     )
 
 
+def _fallback_prosody(word_timestamps: list = None) -> ProsodyMetrics:
+    """Fallback when parselmouth is not available. Estimate from word timestamps."""
+    word_count = len(word_timestamps) if word_timestamps else 0
+    total_duration = 0.0
+    pause_count = 0
+    total_pause_time = 0.0
+
+    if word_timestamps and len(word_timestamps) >= 2:
+        total_duration = word_timestamps[-1].get("end", 0)
+        for i in range(1, len(word_timestamps)):
+            gap = word_timestamps[i].get("start", 0) - word_timestamps[i - 1].get("end", 0)
+            if gap >= 0.15:
+                pause_count += 1
+                total_pause_time += gap
+
+    speech_rate = (word_count / total_duration) * 60 if total_duration > 0 else 0.0
+    total_speech_time = total_duration - total_pause_time
+    articulation_rate = (word_count / total_speech_time) * 60 if total_speech_time > 0 else 0.0
+    mean_pause = total_pause_time / pause_count if pause_count > 0 else 0.0
+
+    return ProsodyMetrics(
+        speech_rate=round(speech_rate, 1),
+        articulation_rate=round(articulation_rate, 1),
+        pause_count=pause_count,
+        mean_pause_duration=round(mean_pause, 3),
+        long_pause_count=sum(1 for ts in (word_timestamps or []) if False),
+        f0_mean=0.0,
+        f0_std=0.0,
+        intonation_index=0.0,
+        total_speech_time=round(total_speech_time, 2),
+        total_duration=round(total_duration, 2),
+    )
+
+
 def evaluate_fluency(metrics: ProsodyMetrics) -> dict:
     score = 100.0
     feedback = []
@@ -101,12 +142,13 @@ def evaluate_fluency(metrics: ProsodyMetrics) -> dict:
         score -= 15
         feedback.append("Average pause duration is too long. Try to keep pauses shorter.")
 
-    if metrics.intonation_index < 0.1:
-        score -= 15
-        feedback.append("Intonation is quite flat. Try to add more pitch variation for expressiveness.")
-    elif metrics.intonation_index < 0.2:
-        score -= 5
-        feedback.append("Intonation could be more varied. Practice emphasizing key words.")
+    if HAS_PARSELMOUTH:
+        if metrics.intonation_index < 0.1:
+            score -= 15
+            feedback.append("Intonation is quite flat. Try to add more pitch variation.")
+        elif metrics.intonation_index < 0.2:
+            score -= 5
+            feedback.append("Intonation could be more varied. Practice emphasizing key words.")
 
     return {
         "fluency_score": max(0, min(100, round(score))),
