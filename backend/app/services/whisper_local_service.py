@@ -2,17 +2,18 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-try:
-    import whisper
-    HAS_WHISPER = True
-except ImportError:
-    HAS_WHISPER = False
-    logger.warning("openai-whisper not installed. Local Whisper STT unavailable.")
+
+def _check_whisper():
+    try:
+        import whisper
+        return True
+    except ImportError:
+        return False
 
 
 def transcribe_audio_local(audio_path: str) -> dict:
     """Transcribe audio using local OpenAI Whisper model with word-level timestamps."""
-    if not HAS_WHISPER:
+    if not _check_whisper():
         raise RuntimeError(
             "openai-whisper is not installed. "
             "Run: pip install openai-whisper"
@@ -59,6 +60,7 @@ def _get_model():
     global _model_cache
     if _model_cache is None:
         import os
+        import whisper
         model_size = os.getenv("WHISPER_MODEL_SIZE", "base")
         logger.info(f"Loading Whisper model: {model_size}")
         _model_cache = whisper.load_model(model_size)
