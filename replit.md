@@ -35,6 +35,7 @@ AI-powered speech practice and assessment platform for HKBU. Students can practi
 
 ### Key API Endpoints
 - `GET /api/health` — health check with STT engine info
+- `GET /api/debug-headers` — temporary diagnostic endpoint (returns request headers, URL, client IP). Remove after debugging deployment issues.
 - `POST /api/auth/teacher-login` — teacher/admin login
 - `POST /api/practice/analyze` — upload audio, get speech analysis
 - `GET /api/practice/session/{id}/audio` — stream back recorded audio for playback

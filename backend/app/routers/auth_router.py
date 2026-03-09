@@ -1,3 +1,4 @@
+import logging
 from fastapi import APIRouter, HTTPException, status, Depends
 import bcrypt
 from app.database import get_db, User
@@ -7,6 +8,7 @@ from app.models.user import (
     UserResponse, LoginResponse
 )
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -46,15 +48,19 @@ async def teacher_login(data: TeacherLoginInput):
         user = db.query(User).filter(User.email.ilike(data.email)).first()
 
         if not user:
+            logger.warning(f"[teacher-login] No user found for email: {data.email}")
             raise HTTPException(status_code=401, detail="Invalid email or password")
 
         if user.role not in ("teacher", "admin"):
+            logger.warning(f"[teacher-login] User {data.email} has role '{user.role}', not teacher/admin")
             raise HTTPException(status_code=401, detail="Invalid email or password")
 
         if not user.password_hash:
+            logger.warning(f"[teacher-login] User {data.email} has no password hash")
             raise HTTPException(status_code=401, detail="Invalid email or password")
 
         if not bcrypt.checkpw(data.password.encode("utf-8"), user.password_hash.encode("utf-8")):
+            logger.warning(f"[teacher-login] Password mismatch for {data.email}")
             raise HTTPException(status_code=401, detail="Invalid email or password")
 
         token = create_access_token({"sub": str(user.id), "role": user.role})

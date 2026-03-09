@@ -25,6 +25,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 
@@ -37,6 +38,15 @@ async def health_check():
         "status": "ok",
         "message": "AI Speech Coach API is running",
         "stt_engine": stt_engine,
+    }
+
+
+@app.get("/api/debug-headers")
+async def debug_headers(request: Request):
+    return {
+        "headers": dict(request.headers),
+        "url": str(request.url),
+        "client": request.client.host if request.client else None,
     }
 
 
@@ -75,6 +85,7 @@ def startup():
 
 def _ensure_admin():
     """Create default admin user if not exists."""
+    logger = logging.getLogger(__name__)
     db = get_db()
     try:
         admin = db.query(User).filter(User.email.ilike(settings.ADMIN_EMAIL)).first()
@@ -87,6 +98,7 @@ def _ensure_admin():
             admin.password_hash = hashed
             admin.role = "admin"
             db.commit()
+            logger.info(f"[startup] Admin user updated: {settings.ADMIN_EMAIL}")
         else:
             admin = User(
                 name="Simon Wang",
@@ -96,5 +108,9 @@ def _ensure_admin():
             )
             db.add(admin)
             db.commit()
+            logger.info(f"[startup] Admin user created: {settings.ADMIN_EMAIL}")
+    except Exception as e:
+        logger.error(f"[startup] Failed to ensure admin user: {e}")
+        raise
     finally:
         db.close()

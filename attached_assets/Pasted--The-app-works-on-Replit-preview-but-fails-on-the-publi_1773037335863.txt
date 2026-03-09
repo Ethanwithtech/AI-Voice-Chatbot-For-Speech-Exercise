@@ -1,0 +1,64 @@
+
+The app works on Replit preview but fails on the public URL (https://ai-voice-chatbot-for-speech-exercise.replit.app) with:
+- POST /api/auth/teacher-login returns 401
+- POST /api/practice/analyze returns 500
+
+This is likely a CORS or proxy issue with the public .replit.app domain. Please debug and fix:
+
+## 1. Check and fix CORS in backend/app/main.py
+
+Make sure the CORS middleware explicitly allows the public domain and all necessary headers. Update the CORS config to be more explicit:
+
+```python
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["*"],
+)
+2. Check if Replit's reverse proxy strips Authorization headers
+Add a debug endpoint temporarily to see what headers reach the backend:
+
+python
+@app.get("/api/debug-headers")
+async def debug_headers(request: Request):
+    return {
+        "headers": dict(request.headers),
+        "url": str(request.url),
+        "client": request.client.host if request.client else None,
+    }
+Then visit https://ai-voice-chatbot-for-speech-exercise.replit.app/api/debug-headers and check if the headers look correct.
+
+3. Check the auth.py for token validation issues
+Look at the JWT decode in backend/app/auth.py — make sure it's not checking the issuer or audience fields that might differ between preview and public URLs.
+
+4. Test the login flow from public URL
+Use curl to test:
+
+bash
+curl -X POST https://ai-voice-chatbot-for-speech-exercise.replit.app/api/auth/teacher-login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"simonwang@hkbu.edu.hk","password":"admin123456"}'
+If this returns 401, the issue is in the login endpoint itself (not CORS). Check:
+
+Is the password hashing working correctly?
+Is the database connection working on public requests?
+Are there any middleware that blocks external requests?
+5. Check if the SPA routing catch-all interferes with API routes
+The serve_frontend catch-all in main.py might be intercepting API POST requests on the public domain. Make sure the API routes are registered BEFORE the static file mount. Look at main.py and verify:
+
+app.include_router(auth_router.router, ...) comes BEFORE app.mount("/assets", ...)
+The catch-all @app.get("/{full_path:path}") only handles GET requests (not POST)
+6. After fixing, push to GitHub
+After you've identified and fixed the issue:
+
+bash
+cd /home/runner/workspace
+git add -A
+git commit -m "fix: public URL auth and CORS issues for .replit.app domain"
+git push origin main
+Then test again on the public URL.
+
+IMPORTANT: Show me the full error logs from the server when the public URL requests come in. Run bash start.sh and then try logging in from the public URL — paste the complete server output so we can see the actual error.
