@@ -118,8 +118,34 @@ class TokenUsage(Base):
 
 
 def init_db():
-    """Create all tables."""
+    """Create all tables and migrate missing columns."""
     Base.metadata.create_all(bind=engine)
+    _run_migrations()
+
+
+def _run_migrations():
+    """Add missing columns/tables for existing PostgreSQL databases."""
+    from sqlalchemy import inspect, text
+
+    inspector = inspect(engine)
+    existing_tables = inspector.get_table_names()
+
+    if "practice_sessions" in existing_tables:
+        columns = [col["name"] for col in inspector.get_columns("practice_sessions")]
+
+        with engine.begin() as conn:
+            if "audio_data" not in columns:
+                if is_sqlite:
+                    conn.execute(text("ALTER TABLE practice_sessions ADD COLUMN audio_data BLOB"))
+                else:
+                    conn.execute(text("ALTER TABLE practice_sessions ADD COLUMN audio_data BYTEA"))
+
+            if "audio_content_type" not in columns:
+                conn.execute(text(
+                    "ALTER TABLE practice_sessions ADD COLUMN audio_content_type VARCHAR(100) DEFAULT 'audio/webm'"
+                ))
+
+    # token_usage table is handled by create_all() if it doesn't exist
 
 
 def get_db():
