@@ -7,10 +7,6 @@ channel = "stable-25_05"
 packages = ["ffmpeg"]
 
 [[ports]]
-localPort = 3001
-externalPort = 3001
-
-[[ports]]
 localPort = 5000
 externalPort = 80
 
@@ -40,8 +36,8 @@ waitForPort = 5000
 
 [deployment]
 deploymentTarget = "vm"
-run = ["bash", "-c", "cd /home/runner/workspace/backend && python -m uvicorn app.main:app --host 0.0.0.0 --port 5000"]
-build = ["bash", "-c", "cd /home/runner/workspace/frontend && npm install --silent && npm run build && cd /home/runner/workspace/backend && pip install -q -r requirements.txt"]
+run = ["bash", "/home/runner/workspace/backend/start_prod.sh"]
+build = ["bash", "/home/runner/workspace/build.sh"]
 
 [userenv]
 
