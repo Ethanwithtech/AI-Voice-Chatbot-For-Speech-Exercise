@@ -10,6 +10,7 @@ import HistoryPage from "@/pages/HistoryPage"
 import ResultPage from "@/pages/ResultPage"
 import ExerciseManagePage from "@/pages/ExerciseManagePage"
 import StudentManagePage from "@/pages/StudentManagePage"
+import StudentSessionsPage from "@/pages/StudentSessionsPage"
 import NotFoundPage from "@/pages/NotFoundPage"
 
 const queryClient = new QueryClient()
@@ -80,6 +81,13 @@ function AppRoutes() {
         <ProtectedRoute requireRole={["teacher", "admin"]}>
           <Header />
           <StudentManagePage />
+        </ProtectedRoute>
+      } />
+
+      <Route path="/students/:userId" element={
+        <ProtectedRoute requireRole={["teacher", "admin"]}>
+          <Header />
+          <StudentSessionsPage />
         </ProtectedRoute>
       } />
 
