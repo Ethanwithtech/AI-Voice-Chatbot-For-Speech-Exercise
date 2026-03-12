@@ -118,8 +118,60 @@ class TokenUsage(Base):
 
 
 def init_db():
-    """Create all tables."""
+    """Create all tables and auto-migrate missing columns on existing tables."""
+    import logging
+    logger = logging.getLogger(__name__)
+
+    # Create any missing tables
     Base.metadata.create_all(bind=engine)
+
+    if is_sqlite:
+        return
+
+    # Auto-migrate: add missing columns to practice_sessions for PostgreSQL
+    _ensure_practice_sessions_columns(logger)
+
+
+def _ensure_practice_sessions_columns(logger):
+    """Add any missing columns to the practice_sessions table in PostgreSQL."""
+    from sqlalchemy import inspect, text
+
+    inspector = inspect(engine)
+    existing_tables = inspector.get_table_names()
+
+    if "practice_sessions" not in existing_tables:
+        return
+
+    existing_columns = {col["name"] for col in inspector.get_columns("practice_sessions")}
+
+    migrations = []
+
+    if "audio_data" not in existing_columns:
+        migrations.append(
+            "ALTER TABLE practice_sessions ADD COLUMN audio_data BYTEA"
+        )
+
+    if "audio_content_type" not in existing_columns:
+        migrations.append(
+            "ALTER TABLE practice_sessions ADD COLUMN audio_content_type VARCHAR(100) DEFAULT 'audio/webm'"
+        )
+
+    if "token_usage" not in existing_tables:
+        # Handled by create_all above, but log it
+        logger.info("[migration] token_usage table will be created by create_all")
+
+    if not migrations:
+        logger.info("[migration] practice_sessions schema is up to date")
+        return
+
+    with engine.connect() as conn:
+        for stmt in migrations:
+            try:
+                conn.execute(text(stmt))
+                conn.commit()
+                logger.info(f"[migration] Applied: {stmt}")
+            except Exception as e:
+                logger.warning(f"[migration] Skipped (possibly already exists): {e}")
 
 
 def get_db():
