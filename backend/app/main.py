@@ -6,7 +6,7 @@ from fastapi import FastAPI, Request
 logging.basicConfig(level=logging.INFO)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from app.config import settings
 from app.database import init_db, get_db, User
 from app.routers import auth_router, exercise_router, practice_router, user_router
@@ -73,8 +73,20 @@ if os.path.exists(frontend_dist):
         file_path = os.path.join(frontend_dist, full_path)
         if full_path and os.path.isfile(file_path):
             return FileResponse(file_path)
-        # Otherwise serve index.html (SPA routing)
-        return FileResponse(os.path.join(frontend_dist, "index.html"))
+        # Serve index.html for SPA routing — always no-cache so browsers
+        # pick up the latest content-hashed JS/CSS bundle after rebuilds
+        index_path = os.path.join(frontend_dist, "index.html")
+        with open(index_path, "rb") as f:
+            content = f.read()
+        return Response(
+            content=content,
+            media_type="text/html",
+            headers={
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Pragma": "no-cache",
+                "Expires": "0",
+            },
+        )
 
 
 @app.on_event("startup")
