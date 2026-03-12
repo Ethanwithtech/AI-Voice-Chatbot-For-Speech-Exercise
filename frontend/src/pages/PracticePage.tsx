@@ -38,6 +38,10 @@ export default function PracticePage() {
   }, [])
 
   const handleStartPractice = () => {
+    if (selectedExercise?.exercise_type === "craa") {
+      navigate(`/craa-practice?exerciseId=${selectedExercise.id}`)
+      return
+    }
     setStage("record")
     setResult(null)
     setError("")
@@ -162,8 +166,14 @@ export default function PracticePage() {
                             <p className="text-sm leading-relaxed">{selectedExercise.reference_text}</p>
                           </div>
                         )}
+                        {selectedExercise.exercise_type === "craa" && (
+                          <div className="mt-2 p-3 rounded-lg bg-primary/5 border border-primary/20 max-w-lg mx-auto text-left">
+                            <p className="text-xs font-semibold text-primary uppercase mb-1">CRAA Exercise</p>
+                            <p className="text-sm text-muted-foreground">This exercise uses the Critical Response and Argument Analysis guided practice mode.</p>
+                          </div>
+                        )}
                         <Button size="lg" onClick={handleStartPractice} className="mt-4">
-                          Start Recording
+                          {selectedExercise.exercise_type === "craa" ? "Start CRAA Practice" : "Start Recording"}
                         </Button>
                       </div>
                     ) : (

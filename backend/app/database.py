@@ -1,5 +1,5 @@
 import os
-from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean, Text, DateTime, ForeignKey, LargeBinary
+from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean, Text, DateTime, ForeignKey, LargeBinary, BigInteger
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
@@ -54,6 +54,15 @@ class Exercise(Base):
     difficulty = Column(String(20), nullable=False, default="medium")
     exercise_type = Column(String(20), nullable=False, default="free_speech")
     created_at = Column(DateTime, default=datetime.utcnow)
+
+    # CRAA-specific fields
+    argument_text = Column(Text, nullable=True)
+    argument_audio_data = Column(LargeBinary, nullable=True)
+    argument_audio_type = Column(String(100), nullable=True)
+    topic_context = Column(Text, nullable=True)
+    key_claim = Column(Text, nullable=True)
+    preparation_time = Column(Integer, nullable=True, default=120)
+    response_time = Column(Integer, nullable=True, default=120)
 
     teacher = relationship("User", back_populates="exercises")
     practice_sessions = relationship("PracticeSession", back_populates="exercise")
@@ -128,40 +137,47 @@ def init_db():
     if is_sqlite:
         return
 
-    # Auto-migrate: add missing columns to practice_sessions for PostgreSQL
-    _ensure_practice_sessions_columns(logger)
+    # Auto-migrate: add missing columns for PostgreSQL
+    _run_migrations(logger)
 
 
-def _ensure_practice_sessions_columns(logger):
-    """Add any missing columns to the practice_sessions table in PostgreSQL."""
+def _run_migrations(logger):
+    """Add any missing columns to existing PostgreSQL tables."""
     from sqlalchemy import inspect, text
 
     inspector = inspect(engine)
     existing_tables = inspector.get_table_names()
 
-    if "practice_sessions" not in existing_tables:
-        return
-
-    existing_columns = {col["name"] for col in inspector.get_columns("practice_sessions")}
-
     migrations = []
 
-    if "audio_data" not in existing_columns:
-        migrations.append(
-            "ALTER TABLE practice_sessions ADD COLUMN audio_data BYTEA"
-        )
+    # practice_sessions migrations
+    if "practice_sessions" in existing_tables:
+        ps_cols = {col["name"] for col in inspector.get_columns("practice_sessions")}
+        if "audio_data" not in ps_cols:
+            migrations.append("ALTER TABLE practice_sessions ADD COLUMN audio_data BYTEA")
+        if "audio_content_type" not in ps_cols:
+            migrations.append("ALTER TABLE practice_sessions ADD COLUMN audio_content_type VARCHAR(100) DEFAULT 'audio/webm'")
 
-    if "audio_content_type" not in existing_columns:
-        migrations.append(
-            "ALTER TABLE practice_sessions ADD COLUMN audio_content_type VARCHAR(100) DEFAULT 'audio/webm'"
-        )
-
-    if "token_usage" not in existing_tables:
-        # Handled by create_all above, but log it
-        logger.info("[migration] token_usage table will be created by create_all")
+    # exercises migrations — CRAA columns
+    if "exercises" in existing_tables:
+        ex_cols = {col["name"] for col in inspector.get_columns("exercises")}
+        if "argument_text" not in ex_cols:
+            migrations.append("ALTER TABLE exercises ADD COLUMN argument_text TEXT")
+        if "argument_audio_data" not in ex_cols:
+            migrations.append("ALTER TABLE exercises ADD COLUMN argument_audio_data BYTEA")
+        if "argument_audio_type" not in ex_cols:
+            migrations.append("ALTER TABLE exercises ADD COLUMN argument_audio_type VARCHAR(100)")
+        if "topic_context" not in ex_cols:
+            migrations.append("ALTER TABLE exercises ADD COLUMN topic_context TEXT")
+        if "key_claim" not in ex_cols:
+            migrations.append("ALTER TABLE exercises ADD COLUMN key_claim TEXT")
+        if "preparation_time" not in ex_cols:
+            migrations.append("ALTER TABLE exercises ADD COLUMN preparation_time INTEGER DEFAULT 120")
+        if "response_time" not in ex_cols:
+            migrations.append("ALTER TABLE exercises ADD COLUMN response_time INTEGER DEFAULT 120")
 
     if not migrations:
-        logger.info("[migration] practice_sessions schema is up to date")
+        logger.info("[migration] All schemas are up to date")
         return
 
     with engine.connect() as conn:

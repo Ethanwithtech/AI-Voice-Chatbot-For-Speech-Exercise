@@ -1,4 +1,4 @@
-import { BookOpen, MessageSquare, HelpCircle } from "lucide-react"
+import { BookOpen, MessageSquare, HelpCircle, Brain } from "lucide-react"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import type { Exercise } from "@/types/exercise"
@@ -13,12 +13,14 @@ const typeIcons = {
   read_aloud: BookOpen,
   free_speech: MessageSquare,
   qa: HelpCircle,
+  craa: Brain,
 }
 
 const typeLabels = {
   read_aloud: "Read Aloud",
   free_speech: "Free Speech",
   qa: "Q&A",
+  craa: "CRAA",
 }
 
 interface ExerciseCardProps {
@@ -47,7 +49,9 @@ export function ExerciseCard({ exercise, onClick, selected }: ExerciseCardProps)
             <Badge variant={difficultyColors[exercise.difficulty]}>
               {exercise.difficulty}
             </Badge>
-            <Badge variant="outline">{typeLabels[exercise.exercise_type]}</Badge>
+            <Badge variant={exercise.exercise_type === "craa" ? "default" : "outline"}>
+              {typeLabels[exercise.exercise_type] || exercise.exercise_type}
+            </Badge>
           </div>
         </div>
       </CardHeader>

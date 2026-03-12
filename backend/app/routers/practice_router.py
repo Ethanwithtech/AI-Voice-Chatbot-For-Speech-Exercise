@@ -11,7 +11,7 @@ from app.services.whisper_service import transcribe_audio
 from app.services.prosody_service import analyze_prosody, evaluate_fluency
 from app.services.pronunciation_service import detect_pronunciation_issues, calculate_pronunciation_score
 from app.services.readaloud_service import detect_read_aloud
-from app.services.llm_service import generate_feedback, get_last_token_usage
+from app.services.llm_service import generate_feedback, generate_craa_feedback, get_last_token_usage
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -328,5 +328,146 @@ async def get_session_audio(session_id: int, current_user: dict = Depends(get_cu
             media_type=content_type,
             headers={"Content-Disposition": f"inline; filename=recording_{session_id}{ext}"},
         )
+    finally:
+        db.close()
+
+
+@router.post("/craa-analyze")
+async def analyze_craa_response(
+    audio: UploadFile = File(...),
+    exercise_id: int = Form(...),
+    current_user: dict = Depends(get_current_user),
+):
+    if current_user["role"] not in ("student", "admin", "teacher"):
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    file_bytes = await audio.read()
+    logger.info(f"[craa-analyze] Received audio: size={len(file_bytes)}, exercise_id={exercise_id}")
+
+    if len(file_bytes) > 50 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File too large (max 50MB)")
+
+    content_type_base = (audio.content_type or "").split(";")[0].strip()
+    allowed_types = ["audio/webm", "audio/wav", "audio/mp3", "audio/mpeg", "audio/ogg", "audio/mp4"]
+    if content_type_base and content_type_base not in allowed_types:
+        raise HTTPException(status_code=400, detail=f"Unsupported audio format: {audio.content_type}")
+
+    upload_path = None
+    wav_path = None
+    db = get_db()
+    try:
+        ex = db.query(Exercise).filter(Exercise.id == exercise_id).first()
+        if not ex:
+            raise HTTPException(status_code=404, detail="Exercise not found")
+        if ex.exercise_type != "craa":
+            raise HTTPException(status_code=400, detail="Exercise is not a CRAA exercise")
+        if not ex.argument_text:
+            raise HTTPException(status_code=400, detail="Exercise has no argument text configured")
+
+        upload_path = save_upload(file_bytes, audio.filename or "craa_response.webm")
+        wav_path = convert_to_wav(upload_path)
+        logger.info("[craa-analyze] Audio saved and converted to WAV")
+
+        whisper_result = await transcribe_audio(wav_path)
+        transcript = whisper_result["transcript"]
+        word_timestamps = whisper_result["word_timestamps"]
+        logger.info(f"[craa-analyze] Transcription: {len(transcript)} chars")
+
+        if not transcript.strip():
+            cleanup_files(upload_path, wav_path)
+            raise HTTPException(status_code=400, detail="No speech detected in the audio")
+
+        prosody = analyze_prosody(wav_path, word_timestamps)
+        prosody_data = prosody.dict()
+
+        logger.info("[craa-analyze] Generating CRAA LLM feedback...")
+        craa_feedback = await generate_craa_feedback(
+            transcript=transcript,
+            argument_text=ex.argument_text,
+            topic_context=ex.topic_context,
+            key_claim=ex.key_claim,
+            prosody_data=prosody_data,
+        )
+
+        overall_grade = craa_feedback.get("overall_grade", 60)
+        summary_score = craa_feedback.get("summary_score", 60)
+        counterargument_score = craa_feedback.get("counterargument_score", 60)
+        delivery_score = craa_feedback.get("delivery_score", 60)
+
+        logger.info(f"[craa-analyze] Scores: overall={overall_grade}, summary={summary_score}, counter={counterargument_score}, delivery={delivery_score}")
+
+        duration = get_audio_duration(upload_path)
+
+        session = PracticeSession(
+            student_id=current_user["id"],
+            exercise_id=exercise_id,
+            audio_data=file_bytes,
+            audio_content_type=content_type_base or "audio/webm",
+            transcript=transcript,
+            duration_seconds=duration,
+        )
+        db.add(session)
+        db.commit()
+        db.refresh(session)
+
+        practice_result = PracticeResult(
+            session_id=session.id,
+            overall_score=overall_grade,
+            grammar_score=delivery_score,
+            fluency_score=summary_score,
+            pronunciation_score=counterargument_score,
+            prosody_score=prosody_data.get("speech_rate", 0),
+            speech_rate=prosody.speech_rate,
+            pause_count=prosody.pause_count,
+            mean_pause_duration=prosody.mean_pause_duration,
+            f0_mean=prosody.f0_mean,
+            f0_std=prosody.f0_std,
+            intonation_index=prosody.intonation_index,
+            is_read_aloud=False,
+            llm_feedback=json.dumps(craa_feedback),
+            errors=json.dumps([]),
+            suggestions=json.dumps(craa_feedback.get("suggestions", [])),
+        )
+        db.add(practice_result)
+        db.commit()
+
+        token_usage = get_last_token_usage()
+        if token_usage["total_tokens"] > 0:
+            usage_record = TokenUsage(
+                user_id=current_user["id"],
+                session_id=session.id,
+                service="poe_llm",
+                tokens_used=token_usage["total_tokens"],
+                detail=json.dumps(token_usage),
+            )
+            db.add(usage_record)
+            db.commit()
+
+        cleanup_files(upload_path, wav_path)
+        logger.info(f"[craa-analyze] Complete, session_id={session.id}")
+
+        return {
+            "session_id": session.id,
+            "transcript": transcript,
+            "overall_grade": overall_grade,
+            "summary_score": summary_score,
+            "counterargument_score": counterargument_score,
+            "delivery_score": delivery_score,
+            "overall_assessment": craa_feedback.get("overall_assessment", ""),
+            "summary_feedback": craa_feedback.get("summary_feedback", ""),
+            "counterargument_feedback": craa_feedback.get("counterargument_feedback", ""),
+            "delivery_feedback": craa_feedback.get("delivery_feedback", ""),
+            "strengths": craa_feedback.get("strengths", []),
+            "areas_to_improve": craa_feedback.get("areas_to_improve", []),
+            "suggestions": craa_feedback.get("suggestions", []),
+            "prosody": prosody_data,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[craa-analyze] Failed: {str(e)}")
+        logger.error(traceback.format_exc())
+        cleanup_files(upload_path, wav_path)
+        raise HTTPException(status_code=500, detail="CRAA analysis failed. Please try again.")
     finally:
         db.close()

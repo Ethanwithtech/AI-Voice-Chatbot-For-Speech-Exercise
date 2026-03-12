@@ -5,6 +5,7 @@ from typing import AsyncGenerator, Optional
 import fastapi_poe as fp
 from app.config import settings
 from app.prompts.speech_feedback import SPEECH_FEEDBACK_SYSTEM_PROMPT, build_feedback_prompt
+from app.prompts.craa_feedback import CRAA_FEEDBACK_SYSTEM_PROMPT, build_craa_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -94,6 +95,57 @@ async def generate_feedback(
             "areas_to_improve": [],
             "prosody_feedback": "",
             "pronunciation_feedback": "",
+        }
+
+    return feedback
+
+
+async def generate_craa_feedback(
+    transcript: str,
+    argument_text: str,
+    topic_context: str = None,
+    key_claim: str = None,
+    prosody_data: dict = None,
+) -> dict:
+    user_prompt = build_craa_prompt(
+        transcript=transcript,
+        argument_text=argument_text,
+        topic_context=topic_context,
+        key_claim=key_claim,
+        prosody_data=prosody_data,
+    )
+
+    messages = [
+        fp.ProtocolMessage(role="system", content=CRAA_FEEDBACK_SYSTEM_PROMPT),
+        fp.ProtocolMessage(role="user", content=user_prompt),
+    ]
+
+    response_text, token_usage = await _get_poe_response(messages)
+
+    text = response_text.strip()
+    if text.startswith("```json"):
+        text = text[7:]
+    if text.startswith("```"):
+        text = text[3:]
+    if text.endswith("```"):
+        text = text[:-3]
+    text = text.strip()
+
+    try:
+        feedback = json.loads(text)
+    except json.JSONDecodeError:
+        feedback = {
+            "overall_grade": 60,
+            "overall_assessment": response_text,
+            "summary_score": 60,
+            "summary_feedback": "Unable to parse structured feedback.",
+            "counterargument_score": 60,
+            "counterargument_feedback": "Unable to parse structured feedback.",
+            "delivery_score": 60,
+            "delivery_feedback": "Unable to parse structured feedback.",
+            "strengths": [],
+            "areas_to_improve": [],
+            "suggestions": ["Please try again for a more detailed analysis."],
         }
 
     return feedback

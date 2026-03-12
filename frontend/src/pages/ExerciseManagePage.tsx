@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
-import { ArrowLeft, Plus, Pencil, Trash2 } from "lucide-react"
+import { ArrowLeft, Plus, Pencil, Trash2, Upload, Loader2, Volume2, Brain } from "lucide-react"
 import { api } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -22,6 +22,7 @@ const typeOptions = [
   { value: "read_aloud", label: "Read Aloud" },
   { value: "free_speech", label: "Free Speech" },
   { value: "qa", label: "Q&A" },
+  { value: "craa", label: "CRAA (Critical Response)" },
 ]
 
 export default function ExerciseManagePage() {
@@ -37,6 +38,19 @@ export default function ExerciseManagePage() {
   const [difficulty, setDifficulty] = useState<DifficultyLevel>("medium")
   const [exerciseType, setExerciseType] = useState<ExerciseType>("free_speech")
 
+  // CRAA-specific fields
+  const [argumentText, setArgumentText] = useState("")
+  const [topicContext, setTopicContext] = useState("")
+  const [keyClaim, setKeyClaim] = useState("")
+  const [preparationTime, setPreparationTime] = useState(120)
+  const [responseTime, setResponseTime] = useState(120)
+
+  // Audio upload state
+  const [argumentAudioFile, setArgumentAudioFile] = useState<File | null>(null)
+  const [audioUploading, setAudioUploading] = useState(false)
+  const [audioUploadedForId, setAudioUploadedForId] = useState<number | null>(null)
+  const audioInputRef = useRef<HTMLInputElement>(null)
+
   useEffect(() => {
     loadExercises()
   }, [])
@@ -51,6 +65,13 @@ export default function ExerciseManagePage() {
     setReferenceText("")
     setDifficulty("medium")
     setExerciseType("free_speech")
+    setArgumentText("")
+    setTopicContext("")
+    setKeyClaim("")
+    setPreparationTime(120)
+    setResponseTime(120)
+    setArgumentAudioFile(null)
+    setAudioUploadedForId(null)
     setEditingId(null)
   }
 
@@ -65,6 +86,13 @@ export default function ExerciseManagePage() {
     setReferenceText(ex.reference_text || "")
     setDifficulty(ex.difficulty)
     setExerciseType(ex.exercise_type)
+    setArgumentText(ex.argument_text || "")
+    setTopicContext(ex.topic_context || "")
+    setKeyClaim(ex.key_claim || "")
+    setPreparationTime(ex.preparation_time ?? 120)
+    setResponseTime(ex.response_time ?? 120)
+    setArgumentAudioFile(null)
+    setAudioUploadedForId(null)
     setEditingId(ex.id)
     setDialogOpen(true)
   }
@@ -79,19 +107,52 @@ export default function ExerciseManagePage() {
       reference_text: referenceText || undefined,
       difficulty,
       exercise_type: exerciseType,
+      ...(exerciseType === "craa" ? {
+        argument_text: argumentText || undefined,
+        topic_context: topicContext || undefined,
+        key_claim: keyClaim || undefined,
+        preparation_time: preparationTime,
+        response_time: responseTime,
+      } : {}),
     }
 
-    if (editingId) {
-      api.put(`/exercises/${editingId}`, data)
-        .then(() => { setDialogOpen(false); loadExercises(); resetForm() })
-        .catch(console.error)
-        .finally(() => setLoading(false))
-    } else {
-      api.post("/exercises/", data)
-        .then(() => { setDialogOpen(false); loadExercises(); resetForm() })
-        .catch(console.error)
-        .finally(() => setLoading(false))
+    try {
+      if (editingId) {
+        await api.put(`/exercises/${editingId}`, data)
+        if (argumentAudioFile) {
+          await uploadArgumentAudio(editingId, argumentAudioFile)
+        }
+        setDialogOpen(false)
+        loadExercises()
+        resetForm()
+      } else {
+        const created = await api.post<Exercise>("/exercises/", data)
+        if (argumentAudioFile && created.id) {
+          await uploadArgumentAudio(created.id, argumentAudioFile)
+        }
+        setDialogOpen(false)
+        loadExercises()
+        resetForm()
+      }
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setLoading(false)
     }
+  }
+
+  const uploadArgumentAudio = async (exerciseId: number, file: File) => {
+    setAudioUploading(true)
+    const formData = new FormData()
+    formData.append("audio", file, file.name)
+    const token = localStorage.getItem("token")
+    await fetch(`/api/exercises/${exerciseId}/argument-audio`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+    })
+    setAudioUploading(false)
+    setAudioUploadedForId(exerciseId)
   }
 
   const handleDelete = (id: number) => {
@@ -99,6 +160,11 @@ export default function ExerciseManagePage() {
     api.delete(`/exercises/${id}`)
       .then(loadExercises)
       .catch(console.error)
+  }
+
+  const getTypeLabel = (type: string) => {
+    const found = typeOptions.find(o => o.value === type)
+    return found?.label ?? type.replace("_", " ")
   }
 
   return (
@@ -130,11 +196,19 @@ export default function ExerciseManagePage() {
                 <CardContent className="p-4 flex items-center justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
+                      {ex.exercise_type === "craa" && <Brain className="h-4 w-4 text-primary" />}
                       <h3 className="font-semibold">{ex.title}</h3>
                       <Badge variant={ex.difficulty === "easy" ? "success" : ex.difficulty === "hard" ? "destructive" : "warning"}>
                         {ex.difficulty}
                       </Badge>
-                      <Badge variant="outline">{ex.exercise_type.replace("_", " ")}</Badge>
+                      <Badge variant={ex.exercise_type === "craa" ? "default" : "outline"}>
+                        {getTypeLabel(ex.exercise_type)}
+                      </Badge>
+                      {ex.has_argument_audio && (
+                        <Badge variant="outline" className="text-blue-600 border-blue-300">
+                          <Volume2 className="h-3 w-3 mr-1" /> Audio
+                        </Badge>
+                      )}
                     </div>
                     <p className="text-sm text-muted-foreground line-clamp-1">{ex.description}</p>
                   </div>
@@ -156,7 +230,7 @@ export default function ExerciseManagePage() {
           <DialogHeader>
             <DialogTitle>{editingId ? "Edit Exercise" : "Create Exercise"}</DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
             <div className="space-y-2">
               <Label>Title</Label>
               <Input value={title} onChange={e => setTitle(e.target.value)} placeholder="Exercise title" required />
@@ -164,10 +238,6 @@ export default function ExerciseManagePage() {
             <div className="space-y-2">
               <Label>Description</Label>
               <Textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="Instructions for students" required />
-            </div>
-            <div className="space-y-2">
-              <Label>Reference Text (optional)</Label>
-              <Textarea value={referenceText} onChange={e => setReferenceText(e.target.value)} placeholder="Text for read-aloud exercises" />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -179,10 +249,110 @@ export default function ExerciseManagePage() {
                 <Select options={typeOptions} value={exerciseType} onChange={e => setExerciseType(e.target.value as ExerciseType)} />
               </div>
             </div>
+
+            {exerciseType !== "craa" && (
+              <div className="space-y-2">
+                <Label>Reference Text (optional)</Label>
+                <Textarea value={referenceText} onChange={e => setReferenceText(e.target.value)} placeholder="Text for read-aloud exercises" />
+              </div>
+            )}
+
+            {exerciseType === "craa" && (
+              <div className="space-y-4 p-4 rounded-lg border border-primary/20 bg-primary/5">
+                <div className="flex items-center gap-2">
+                  <Brain className="h-4 w-4 text-primary" />
+                  <h3 className="font-semibold text-sm">CRAA Configuration</h3>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Topic Context</Label>
+                  <Textarea
+                    value={topicContext}
+                    onChange={e => setTopicContext(e.target.value)}
+                    placeholder="Background context for the topic (e.g. 'In recent years, AI has transformed education...')"
+                    rows={2}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Key Claim</Label>
+                  <Input
+                    value={keyClaim}
+                    onChange={e => setKeyClaim(e.target.value)}
+                    placeholder="The main argument claim (e.g. 'AI will replace teachers within 10 years')"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Argument Text <span className="text-muted-foreground text-xs">(what students read/hear)</span></Label>
+                  <Textarea
+                    value={argumentText}
+                    onChange={e => setArgumentText(e.target.value)}
+                    placeholder="The full academic argument text that students must listen to and critically respond to..."
+                    rows={5}
+                    required={exerciseType === "craa"}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Argument Audio <span className="text-muted-foreground text-xs">(optional)</span></Label>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => audioInputRef.current?.click()}
+                    >
+                      <Upload className="h-4 w-4 mr-2" />
+                      {argumentAudioFile ? argumentAudioFile.name : "Upload Audio File"}
+                    </Button>
+                    {audioUploading && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
+                    {audioUploadedForId && !audioUploading && (
+                      <span className="text-xs text-green-600">Audio uploaded</span>
+                    )}
+                  </div>
+                  <input
+                    ref={audioInputRef}
+                    type="file"
+                    accept="audio/*"
+                    className="hidden"
+                    onChange={e => {
+                      const file = e.target.files?.[0]
+                      if (file) setArgumentAudioFile(file)
+                    }}
+                  />
+                  <p className="text-xs text-muted-foreground">Supported: MP3, WAV, WebM, OGG (max 50MB)</p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Preparation Time (seconds)</Label>
+                    <Input
+                      type="number"
+                      min={30}
+                      max={600}
+                      value={preparationTime}
+                      onChange={e => setPreparationTime(Number(e.target.value))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Response Time (seconds)</Label>
+                    <Input
+                      type="number"
+                      min={30}
+                      max={600}
+                      value={responseTime}
+                      onChange={e => setResponseTime(Number(e.target.value))}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="flex justify-end gap-2 pt-2">
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-              <Button type="submit" disabled={loading}>
-                {loading ? "Saving..." : editingId ? "Update" : "Create"}
+              <Button type="submit" disabled={loading || audioUploading}>
+                {loading ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Saving...</> : editingId ? "Update" : "Create"}
               </Button>
             </div>
           </form>

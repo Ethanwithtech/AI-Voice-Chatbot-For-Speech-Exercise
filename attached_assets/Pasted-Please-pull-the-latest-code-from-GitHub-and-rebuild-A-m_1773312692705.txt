@@ -1,0 +1,43 @@
+Please pull the latest code from GitHub and rebuild. A major new feature (CRAA practice mode) has been added.
+
+bash
+git pull origin main
+cd frontend && npm run build && cd ..
+Then restart the application.
+
+What's new — CRAA (Critical Response to Academic Arguments) Practice Mode
+A new exercise type craa has been added, following the HKBU UE1 Module 4 speaking test format. Here's what changed:
+
+Backend changes:
+
+database.py — Exercise model has 7 new columns (argument_text, argument_audio_data, argument_audio_type, topic_context, key_claim, preparation_time, response_time). The _run_migrations() function will auto-add these columns to the existing PostgreSQL exercises table on startup.
+models/exercise.py — New craa enum value + CRAA Pydantic fields
+exercise_router.py — Refactored + new POST/GET /{id}/argument-audio endpoints for uploading/streaming argument audio
+practice_router.py — New POST /craa-analyze endpoint that uses CRAA-specific rubric evaluation
+llm_service.py — New generate_craa_feedback() function
+prompts/craa_feedback.py — New file with CRAA rubric prompt (Summary 40% + Counterargument 30% + Delivery 30%)
+Frontend changes:
+
+CRAAPracticePage.tsx — New page with full 4-stage CRAA flow: Intro → Listen → Prepare (countdown) → Record (countdown) → AI Assessment
+ExerciseManagePage.tsx — Updated with CRAA configuration form (argument text, audio upload, key claim, timing)
+PracticePage.tsx — CRAA exercises auto-redirect to /craa-practice
+App.tsx — New /craa-practice route
+ExerciseCard.tsx — CRAA icon and label
+types/exercise.ts — CRAA type and fields
+Verification steps:
+Check startup logs — Confirm the auto-migration adds new columns to the exercises table without errors
+Create a CRAA exercise — Login as teacher → Exercise Management → New Exercise → Select "CRAA (Critical Response)" type → Fill in:
+Title: "Mindfulness in the Workplace"
+Topic Context: "Mindfulness is the practice of paying attention to your current body condition and feelings on purpose and without judgement."
+Key Claim: "Mindfulness programmes should be implemented in workplaces because they reduce employee stress."
+Argument Text: (paste a paragraph of the argument)
+Optionally upload argument audio
+Set prep time (120s) and response time (120s)
+Test CRAA practice flow — Login as student → Practice → Select the CRAA exercise → Click "Start Recording" → Should redirect to /craa-practice page → Go through Listen → Prepare → Record → Get CRAA-specific results with 3-dimension scores
+Verify the CRAA result page shows: Overall grade, Summary Accuracy (40%), Counterargument Quality (30%), Verbal Delivery (30%), with detailed feedback for each dimension
+If git pull has merge conflicts, resolve by accepting the remote version:
+
+bash
+git checkout --theirs .
+git add .
+git pull origin main

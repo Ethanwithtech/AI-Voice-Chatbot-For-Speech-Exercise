@@ -15,6 +15,7 @@ def init_admin():
     try:
         existing = db.query(User).filter(User.email.ilike(settings.ADMIN_EMAIL)).first()
 
+        
         hashed = bcrypt.hashpw(
             settings.ADMIN_PASSWORD.encode("utf-8"),
             bcrypt.gensalt()
