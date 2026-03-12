@@ -11,6 +11,7 @@ import ResultPage from "@/pages/ResultPage"
 import ExerciseManagePage from "@/pages/ExerciseManagePage"
 import StudentManagePage from "@/pages/StudentManagePage"
 import StudentSessionsPage from "@/pages/StudentSessionsPage"
+import CRAAPracticePage from "@/pages/CRAAPracticePage"
 import NotFoundPage from "@/pages/NotFoundPage"
 
 const queryClient = new QueryClient()
@@ -53,6 +54,13 @@ function AppRoutes() {
         <ProtectedRoute>
           <Header />
           <PracticePage />
+        </ProtectedRoute>
+      } />
+
+      <Route path="/craa-practice" element={
+        <ProtectedRoute>
+          <Header />
+          <CRAAPracticePage />
         </ProtectedRoute>
       } />
 

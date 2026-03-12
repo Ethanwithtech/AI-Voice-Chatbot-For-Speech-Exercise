@@ -13,6 +13,7 @@ class ExerciseType(str, Enum):
     read_aloud = "read_aloud"
     free_speech = "free_speech"
     qa = "qa"
+    craa = "craa"
 
 
 class CreateExerciseInput(BaseModel):
@@ -21,6 +22,12 @@ class CreateExerciseInput(BaseModel):
     reference_text: Optional[str] = None
     difficulty: DifficultyLevel = DifficultyLevel.medium
     exercise_type: ExerciseType = ExerciseType.free_speech
+    # CRAA-specific fields
+    argument_text: Optional[str] = None
+    topic_context: Optional[str] = None
+    key_claim: Optional[str] = None
+    preparation_time: Optional[int] = 120
+    response_time: Optional[int] = 120
 
 
 class UpdateExerciseInput(BaseModel):
@@ -29,6 +36,11 @@ class UpdateExerciseInput(BaseModel):
     reference_text: Optional[str] = None
     difficulty: Optional[DifficultyLevel] = None
     exercise_type: Optional[ExerciseType] = None
+    argument_text: Optional[str] = None
+    topic_context: Optional[str] = None
+    key_claim: Optional[str] = None
+    preparation_time: Optional[int] = None
+    response_time: Optional[int] = None
 
 
 class ExerciseResponse(BaseModel):
@@ -41,3 +53,10 @@ class ExerciseResponse(BaseModel):
     exercise_type: str
     created_at: Optional[str] = None
     teacher_name: Optional[str] = None
+    # CRAA fields
+    argument_text: Optional[str] = None
+    has_argument_audio: Optional[bool] = False
+    topic_context: Optional[str] = None
+    key_claim: Optional[str] = None
+    preparation_time: Optional[int] = 120
+    response_time: Optional[int] = 120

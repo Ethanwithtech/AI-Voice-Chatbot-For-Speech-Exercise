@@ -38,6 +38,11 @@ export default function PracticePage() {
   }, [])
 
   const handleStartPractice = () => {
+    // CRAA exercises go to a dedicated page
+    if (selectedExercise?.exercise_type === "craa") {
+      navigate(`/craa-practice?exerciseId=${selectedExercise.id}`)
+      return
+    }
     setStage("record")
     setResult(null)
     setError("")

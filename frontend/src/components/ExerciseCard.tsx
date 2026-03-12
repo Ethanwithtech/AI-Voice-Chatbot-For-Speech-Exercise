@@ -1,4 +1,4 @@
-import { BookOpen, MessageSquare, HelpCircle } from "lucide-react"
+import { BookOpen, MessageSquare, HelpCircle, Swords } from "lucide-react"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import type { Exercise } from "@/types/exercise"
@@ -13,12 +13,14 @@ const typeIcons = {
   read_aloud: BookOpen,
   free_speech: MessageSquare,
   qa: HelpCircle,
+  craa: Swords,
 }
 
 const typeLabels = {
   read_aloud: "Read Aloud",
   free_speech: "Free Speech",
   qa: "Q&A",
+  craa: "CRAA",
 }
 
 interface ExerciseCardProps {

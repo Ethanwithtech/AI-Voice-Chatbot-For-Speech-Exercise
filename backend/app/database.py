@@ -55,6 +55,15 @@ class Exercise(Base):
     exercise_type = Column(String(20), nullable=False, default="free_speech")
     created_at = Column(DateTime, default=datetime.utcnow)
 
+    # CRAA-specific fields
+    argument_text = Column(Text, nullable=True)          # Full transcript of the argument audio
+    argument_audio_data = Column(LargeBinary, nullable=True)  # Teacher-uploaded argument audio
+    argument_audio_type = Column(String(100), nullable=True)  # MIME type of argument audio
+    topic_context = Column(Text, nullable=True)           # Background context for the topic
+    key_claim = Column(Text, nullable=True)               # The core claim to be summarised/rebutted
+    preparation_time = Column(Integer, nullable=True, default=120)   # Prep time in seconds
+    response_time = Column(Integer, nullable=True, default=120)      # Response time in seconds
+
     teacher = relationship("User", back_populates="exercises")
     practice_sessions = relationship("PracticeSession", back_populates="exercise")
 
@@ -144,6 +153,30 @@ def _run_migrations():
                 conn.execute(text(
                     "ALTER TABLE practice_sessions ADD COLUMN audio_content_type VARCHAR(100) DEFAULT 'audio/webm'"
                 ))
+
+    # Migrate exercises table for CRAA fields
+    if "exercises" in existing_tables:
+        columns = [col["name"] for col in inspector.get_columns("exercises")]
+
+        craa_columns = {
+            "argument_text": "TEXT",
+            "argument_audio_type": "VARCHAR(100)",
+            "topic_context": "TEXT",
+            "key_claim": "TEXT",
+            "preparation_time": "INTEGER DEFAULT 120",
+            "response_time": "INTEGER DEFAULT 120",
+        }
+        # argument_audio_data needs special handling for binary
+        with engine.begin() as conn:
+            for col_name, col_type in craa_columns.items():
+                if col_name not in columns:
+                    conn.execute(text(f"ALTER TABLE exercises ADD COLUMN {col_name} {col_type}"))
+
+            if "argument_audio_data" not in columns:
+                if is_sqlite:
+                    conn.execute(text("ALTER TABLE exercises ADD COLUMN argument_audio_data BLOB"))
+                else:
+                    conn.execute(text("ALTER TABLE exercises ADD COLUMN argument_audio_data BYTEA"))
 
     # token_usage table is handled by create_all() if it doesn't exist
 

@@ -99,6 +99,62 @@ async def generate_feedback(
     return feedback
 
 
+async def generate_craa_feedback(
+    transcript: str,
+    argument_text: Optional[str] = None,
+    key_claim: Optional[str] = None,
+    topic_context: Optional[str] = None,
+    prosody_data: Optional[dict] = None,
+    pronunciation_issues: Optional[list] = None,
+    difficulty: str = "medium",
+) -> dict:
+    from app.prompts.craa_feedback import CRAA_FEEDBACK_SYSTEM_PROMPT, build_craa_feedback_prompt
+
+    user_prompt = build_craa_feedback_prompt(
+        transcript=transcript,
+        argument_text=argument_text,
+        key_claim=key_claim,
+        topic_context=topic_context,
+        prosody_data=prosody_data,
+        pronunciation_issues=pronunciation_issues,
+        difficulty=difficulty,
+    )
+
+    messages = [
+        fp.ProtocolMessage(role="system", content=CRAA_FEEDBACK_SYSTEM_PROMPT),
+        fp.ProtocolMessage(role="user", content=user_prompt),
+    ]
+
+    response_text = await _get_poe_response(messages)
+
+    text = response_text.strip()
+    if text.startswith("```json"):
+        text = text[7:]
+    if text.startswith("```"):
+        text = text[3:]
+    if text.endswith("```"):
+        text = text[:-3]
+    text = text.strip()
+
+    try:
+        feedback = json.loads(text)
+    except json.JSONDecodeError:
+        feedback = {
+            "overall_assessment": response_text,
+            "overall_score": 60,
+            "overall_grade": "C+",
+            "summary_accuracy": {"score": 60, "grade": "C+", "feedback": response_text, "main_ideas_covered": [], "main_ideas_missed": []},
+            "counterargument_quality": {"score": 60, "grade": "C+", "feedback": "", "strategy_used": "", "logical_issues": []},
+            "verbal_delivery": {"score": 60, "grade": "C+", "feedback": "", "pronunciation_notes": "", "fluency_notes": ""},
+            "strengths": [],
+            "areas_to_improve": [],
+            "suggestions": ["Please try again for a more detailed analysis."],
+            "grammar_errors": [],
+        }
+
+    return feedback
+
+
 async def generate_feedback_stream(
     transcript: str,
     reference_text: Optional[str] = None,
