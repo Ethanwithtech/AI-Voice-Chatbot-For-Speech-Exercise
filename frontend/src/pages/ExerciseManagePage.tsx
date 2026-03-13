@@ -46,6 +46,7 @@ export default function ExerciseManagePage() {
   const [preparationTime, setPreparationTime] = useState(120)
   const [responseTime, setResponseTime] = useState(120)
   const [audioFile, setAudioFile] = useState<File | null>(null)
+  const [videoUrl, setVideoUrl] = useState("")
   const audioInputRef = useRef<HTMLInputElement>(null)
 
   const isCRAA = exerciseType === "craa"
@@ -61,7 +62,7 @@ export default function ExerciseManagePage() {
     setDifficulty("medium"); setExerciseType("free_speech")
     setArgumentText(""); setTopicContext(""); setKeyClaim("")
     setPreparationTime(120); setResponseTime(120)
-    setAudioFile(null); setEditingId(null)
+    setAudioFile(null); setVideoUrl(""); setEditingId(null)
   }
 
   const openCreateDialog = () => { resetForm(); setDialogOpen(true) }
@@ -77,6 +78,7 @@ export default function ExerciseManagePage() {
     setKeyClaim(ex.key_claim || "")
     setPreparationTime(ex.preparation_time || 120)
     setResponseTime(ex.response_time || 120)
+    setVideoUrl(ex.video_url || "")
     setAudioFile(null)
     setEditingId(ex.id)
     setDialogOpen(true)
@@ -96,6 +98,7 @@ export default function ExerciseManagePage() {
         key_claim: keyClaim || undefined,
         preparation_time: preparationTime,
         response_time: responseTime,
+        video_url: videoUrl || undefined,
       } : {}),
     }
 
@@ -281,6 +284,16 @@ export default function ExerciseManagePage() {
                     )}
                   </div>
                   <p className="text-xs text-muted-foreground">Upload the argument recording (MP3/WAV/WebM). If not provided, students will read the argument text.</p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Background Video URL (optional)</Label>
+                  <Input
+                    value={videoUrl}
+                    onChange={e => setVideoUrl(e.target.value)}
+                    placeholder="https://www.youtube.com/watch?v=... (warm-up video for students to watch before practice)"
+                  />
+                  <p className="text-xs text-muted-foreground">Optional YouTube video for students to learn about the topic before the CRAA exercise.</p>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">

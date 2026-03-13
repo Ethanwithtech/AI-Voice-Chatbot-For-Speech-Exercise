@@ -28,6 +28,7 @@ class CreateExerciseInput(BaseModel):
     key_claim: Optional[str] = None
     preparation_time: Optional[int] = 120
     response_time: Optional[int] = 120
+    video_url: Optional[str] = None
 
 
 class UpdateExerciseInput(BaseModel):
@@ -41,6 +42,7 @@ class UpdateExerciseInput(BaseModel):
     key_claim: Optional[str] = None
     preparation_time: Optional[int] = None
     response_time: Optional[int] = None
+    video_url: Optional[str] = None
 
 
 class ExerciseResponse(BaseModel):
@@ -60,3 +62,4 @@ class ExerciseResponse(BaseModel):
     key_claim: Optional[str] = None
     preparation_time: Optional[int] = 120
     response_time: Optional[int] = 120
+    video_url: Optional[str] = None

@@ -418,6 +418,22 @@ export default function CRAAPracticePage() {
                   </div>
                 )}
 
+                {exercise?.video_url && (
+                  <div className="max-w-lg mx-auto">
+                    <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase">📺 Background Video</p>
+                    <div className="relative w-full rounded-lg overflow-hidden border" style={{ paddingBottom: "56.25%" }}>
+                      <iframe
+                        className="absolute inset-0 w-full h-full"
+                        src={exercise.video_url.replace("watch?v=", "embed/").replace("&t=", "?start=").replace("s", "")}
+                        title="Background Video"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-2">Watch this video to learn about the topic before starting the exercise.</p>
+                  </div>
+                )}
+
                 <div className="text-left max-w-lg mx-auto space-y-3">
                   <h3 className="text-sm font-semibold text-muted-foreground uppercase">How it works</h3>
                   <div className="flex items-start gap-3">

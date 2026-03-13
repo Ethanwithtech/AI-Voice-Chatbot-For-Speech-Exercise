@@ -18,6 +18,7 @@ export interface Exercise {
   key_claim?: string | null
   preparation_time?: number
   response_time?: number
+  video_url?: string | null
 }
 
 export interface CreateExerciseInput {
@@ -31,4 +32,5 @@ export interface CreateExerciseInput {
   key_claim?: string
   preparation_time?: number
   response_time?: number
+  video_url?: string
 }

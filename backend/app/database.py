@@ -63,6 +63,7 @@ class Exercise(Base):
     key_claim = Column(Text, nullable=True)               # The core claim to be summarised/rebutted
     preparation_time = Column(Integer, nullable=True, default=120)   # Prep time in seconds
     response_time = Column(Integer, nullable=True, default=120)      # Response time in seconds
+    video_url = Column(Text, nullable=True)               # Optional background/warm-up video URL (YouTube)
 
     teacher = relationship("User", back_populates="exercises")
     practice_sessions = relationship("PracticeSession", back_populates="exercise")
@@ -165,6 +166,7 @@ def _run_migrations():
             "key_claim": "TEXT",
             "preparation_time": "INTEGER DEFAULT 120",
             "response_time": "INTEGER DEFAULT 120",
+            "video_url": "TEXT",
         }
         # argument_audio_data needs special handling for binary
         with engine.begin() as conn:
