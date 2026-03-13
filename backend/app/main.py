@@ -1,5 +1,6 @@
 import os
 import logging
+import threading
 import bcrypt
 from fastapi import FastAPI, Request
 
@@ -91,8 +92,25 @@ if os.path.exists(frontend_dist):
 
 @app.on_event("startup")
 def startup():
-    init_db()
-    _ensure_admin()
+    """Start server immediately, run DB init in background thread."""
+    thread = threading.Thread(target=_startup_background, daemon=True)
+    thread.start()
+
+
+def _startup_background():
+    """Run DB migrations and admin setup in background so port binds instantly."""
+    logger = logging.getLogger(__name__)
+    try:
+        logger.info("[startup] Running DB init in background...")
+        init_db()
+        logger.info("[startup] DB init complete")
+    except Exception as e:
+        logger.error(f"[startup] DB init failed: {e}")
+
+    try:
+        _ensure_admin()
+    except Exception as e:
+        logger.error(f"[startup] Admin setup failed (non-fatal): {e}")
 
 
 def _ensure_admin():

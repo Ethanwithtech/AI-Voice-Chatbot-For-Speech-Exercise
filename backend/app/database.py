@@ -21,8 +21,15 @@ if is_sqlite:
         os.makedirs(db_dir, exist_ok=True)
     engine = create_engine(db_url, connect_args={"check_same_thread": False}, echo=False)
 else:
-    # PostgreSQL (Replit)
-    engine = create_engine(db_url, echo=False, pool_pre_ping=True)
+    # PostgreSQL — connect_timeout prevents startup hanging if DB is slow
+    engine = create_engine(
+        db_url,
+        echo=False,
+        pool_pre_ping=True,
+        pool_timeout=10,
+        pool_recycle=1800,
+        connect_args={"connect_timeout": 10},
+    )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
