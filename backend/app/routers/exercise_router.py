@@ -27,6 +27,7 @@ def _exercise_to_response(ex: Exercise, teacher_name: str = None) -> ExerciseRes
         preparation_time=ex.preparation_time,
         response_time=ex.response_time,
         has_argument_audio=bool(ex.argument_audio_data),
+        video_url=ex.video_url,
     )
 
 
@@ -73,6 +74,7 @@ async def create_exercise(data: CreateExerciseInput, teacher: dict = Depends(req
             key_claim=data.key_claim,
             preparation_time=data.preparation_time,
             response_time=data.response_time,
+            video_url=data.video_url,
         )
         db.add(ex)
         db.commit()

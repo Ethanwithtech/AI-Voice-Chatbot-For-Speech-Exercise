@@ -46,6 +46,7 @@ export default function ExerciseManagePage() {
   const [responseTime, setResponseTime] = useState(120)
 
   // Audio upload state
+  const [videoUrl, setVideoUrl] = useState("")
   const [argumentAudioFile, setArgumentAudioFile] = useState<File | null>(null)
   const [audioUploading, setAudioUploading] = useState(false)
   const [audioUploadedForId, setAudioUploadedForId] = useState<number | null>(null)
@@ -70,6 +71,7 @@ export default function ExerciseManagePage() {
     setKeyClaim("")
     setPreparationTime(120)
     setResponseTime(120)
+    setVideoUrl("")
     setArgumentAudioFile(null)
     setAudioUploadedForId(null)
     setEditingId(null)
@@ -91,6 +93,7 @@ export default function ExerciseManagePage() {
     setKeyClaim(ex.key_claim || "")
     setPreparationTime(ex.preparation_time ?? 120)
     setResponseTime(ex.response_time ?? 120)
+    setVideoUrl(ex.video_url || "")
     setArgumentAudioFile(null)
     setAudioUploadedForId(null)
     setEditingId(ex.id)
@@ -113,6 +116,7 @@ export default function ExerciseManagePage() {
         key_claim: keyClaim || undefined,
         preparation_time: preparationTime,
         response_time: responseTime,
+        video_url: videoUrl || undefined,
       } : {}),
     }
 
@@ -322,6 +326,17 @@ export default function ExerciseManagePage() {
                     }}
                   />
                   <p className="text-xs text-muted-foreground">Supported: MP3, WAV, WebM, OGG (max 50MB)</p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Background Video URL <span className="text-muted-foreground text-xs">(optional YouTube link)</span></Label>
+                  <Input
+                    type="url"
+                    value={videoUrl}
+                    onChange={e => setVideoUrl(e.target.value)}
+                    placeholder="https://www.youtube.com/watch?v=..."
+                  />
+                  <p className="text-xs text-muted-foreground">Students will see this video on the intro screen to learn about the topic before starting.</p>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">

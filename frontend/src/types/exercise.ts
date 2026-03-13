@@ -17,6 +17,7 @@ export interface Exercise {
   preparation_time?: number | null
   response_time?: number | null
   has_argument_audio?: boolean
+  video_url?: string | null
 }
 
 export interface CreateExerciseInput {
@@ -30,4 +31,5 @@ export interface CreateExerciseInput {
   key_claim?: string
   preparation_time?: number
   response_time?: number
+  video_url?: string
 }

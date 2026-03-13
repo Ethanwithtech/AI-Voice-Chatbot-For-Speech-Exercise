@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react"
 import { useNavigate, useSearchParams } from "react-router-dom"
-import { ArrowLeft, Brain, Headphones, Clock, Mic, CheckCircle, Loader2, Volume2 } from "lucide-react"
+import { ArrowLeft, Brain, Headphones, Clock, Mic, CheckCircle, Loader2, Volume2, PlayCircle } from "lucide-react"
 import { api } from "@/lib/api"
 import { useAudioRecorder } from "@/hooks/useAudioRecorder"
 import { Button } from "@/components/ui/button"
@@ -24,6 +24,23 @@ interface CRAAResult {
   strengths: string[]
   areas_to_improve: string[]
   suggestions: string[]
+}
+
+function getYouTubeEmbedUrl(url: string): string | null {
+  if (!url) return null
+  try {
+    const u = new URL(url)
+    let videoId: string | null = null
+    if (u.hostname.includes("youtu.be")) {
+      videoId = u.pathname.slice(1)
+    } else if (u.hostname.includes("youtube.com")) {
+      videoId = u.searchParams.get("v")
+    }
+    if (!videoId) return null
+    return `https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1`
+  } catch {
+    return null
+  }
 }
 
 function CountdownRing({ seconds, total }: { seconds: number; total: number }) {
@@ -268,6 +285,29 @@ export default function CRAAPracticePage() {
                 </div>
               </CardContent>
             </Card>
+
+            {exercise.video_url && (() => {
+              const embedUrl = getYouTubeEmbedUrl(exercise.video_url)
+              return embedUrl ? (
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <PlayCircle className="h-4 w-4 text-red-500" />
+                      <h3 className="font-semibold text-sm">Background Video</h3>
+                    </div>
+                    <div className="relative w-full" style={{ paddingBottom: "56.25%" }}>
+                      <iframe
+                        className="absolute inset-0 w-full h-full rounded-lg"
+                        src={embedUrl}
+                        title="Background video"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : null
+            })()}
 
             <Card>
               <CardContent className="p-6">

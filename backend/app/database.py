@@ -63,6 +63,7 @@ class Exercise(Base):
     key_claim = Column(Text, nullable=True)
     preparation_time = Column(Integer, nullable=True, default=120)
     response_time = Column(Integer, nullable=True, default=120)
+    video_url = Column(String(500), nullable=True)
 
     teacher = relationship("User", back_populates="exercises")
     practice_sessions = relationship("PracticeSession", back_populates="exercise")
@@ -175,6 +176,8 @@ def _run_migrations(logger):
             migrations.append("ALTER TABLE exercises ADD COLUMN preparation_time INTEGER DEFAULT 120")
         if "response_time" not in ex_cols:
             migrations.append("ALTER TABLE exercises ADD COLUMN response_time INTEGER DEFAULT 120")
+        if "video_url" not in ex_cols:
+            migrations.append("ALTER TABLE exercises ADD COLUMN video_url VARCHAR(500)")
 
     if not migrations:
         logger.info("[migration] All schemas are up to date")
