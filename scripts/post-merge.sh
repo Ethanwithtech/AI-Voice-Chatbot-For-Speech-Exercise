@@ -7,9 +7,10 @@ echo "=== Post-merge setup ==="
 echo "Installing backend dependencies..."
 pip install -q -r /home/runner/workspace/backend/requirements.txt
 
-# Install frontend dependencies
+# Install frontend dependencies and build
 echo "Installing frontend dependencies..."
-cd /home/runner/workspace/frontend && npm install --legacy-peer-deps
+cd /home/runner/workspace/frontend
+npm install --legacy-peer-deps --no-fund --no-audit < /dev/null
 
 # Run DB migrations (idempotent — safe to run on every merge)
 echo "Running DB migrations..."
@@ -19,7 +20,6 @@ python -c "from app.database import init_db; init_db(); print('Migrations comple
 # Build frontend
 echo "Building frontend..."
 cd /home/runner/workspace/frontend
-npm install --no-fund --no-audit < /dev/null
 npx vite build
 
 echo "=== Post-merge setup complete ==="
