@@ -253,39 +253,27 @@ export default function CRAAPracticePage() {
 
         {/* INTRO */}
         {stage === "intro" && (
-          <div className="space-y-6">
+          <div className="space-y-5">
+
+            {/* Exercise title + description */}
             <Card>
               <CardContent className="p-6">
-                <h2 className="text-xl font-bold mb-2">{exercise.title}</h2>
-                <p className="text-muted-foreground mb-4">{exercise.description}</p>
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <h2 className="text-xl font-bold leading-tight">{exercise.title}</h2>
+                  <Badge variant="default" className="shrink-0">CRAA</Badge>
+                </div>
+                <p className="text-muted-foreground text-sm leading-relaxed">{exercise.description}</p>
 
                 {exercise.topic_context && (
-                  <div className="mb-4 p-4 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
+                  <div className="mt-4 p-4 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
                     <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase mb-1">Topic Context</p>
                     <p className="text-sm leading-relaxed">{exercise.topic_context}</p>
                   </div>
                 )}
-
-                {exercise.key_claim && (
-                  <div className="mb-4 p-4 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
-                    <p className="text-xs font-semibold text-amber-600 dark:text-amber-400 uppercase mb-1">Key Claim</p>
-                    <p className="text-sm font-medium leading-relaxed">"{exercise.key_claim}"</p>
-                  </div>
-                )}
-
-                <div className="flex gap-4 text-sm text-muted-foreground">
-                  <span className="flex items-center gap-1">
-                    <Clock className="h-4 w-4" />
-                    Prepare: {exercise.preparation_time ?? 120}s
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <Mic className="h-4 w-4" />
-                    Respond: {exercise.response_time ?? 120}s
-                  </span>
-                </div>
               </CardContent>
             </Card>
 
+            {/* Optional background video */}
             {exercise.video_url && (() => {
               const embedUrl = getYouTubeEmbedUrl(exercise.video_url)
               return embedUrl ? (
@@ -309,20 +297,124 @@ export default function CRAAPracticePage() {
               ) : null
             })()}
 
+            {/* Assessment steps */}
             <Card>
               <CardContent className="p-6">
-                <h3 className="font-semibold mb-3">What you'll do:</h3>
-                <ol className="space-y-2 text-sm">
-                  <li className="flex gap-3"><span className="w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold shrink-0">1</span><span><strong>Listen</strong> to an academic argument</span></li>
-                  <li className="flex gap-3"><span className="w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold shrink-0">2</span><span><strong>Prepare</strong> your response ({exercise.preparation_time ?? 120}s countdown)</span></li>
-                  <li className="flex gap-3"><span className="w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold shrink-0">3</span><span><strong>Record</strong> your critical response ({exercise.response_time ?? 120}s limit)</span></li>
-                  <li className="flex gap-3"><span className="w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold shrink-0">4</span><span><strong>Receive</strong> AI feedback across 3 dimensions</span></li>
-                </ol>
+                <h3 className="font-semibold text-base mb-4">How this assessment works</h3>
+                <div className="space-y-4">
+
+                  {/* Step 1 */}
+                  <div className="flex gap-4">
+                    <div className="shrink-0 flex flex-col items-center">
+                      <div className="w-9 h-9 rounded-full bg-blue-500/15 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-sm">
+                        1
+                      </div>
+                      <div className="w-px flex-1 bg-border mt-2" />
+                    </div>
+                    <div className="pb-4">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Headphones className="h-4 w-4 text-blue-500" />
+                        <span className="font-semibold">Listening</span>
+                        <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                          2 min
+                        </span>
+                      </div>
+                      <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
+                        <li>You will hear an audio clip with background information and one argument</li>
+                        <li>You may take notes while listening</li>
+                        <li>The clip is played once — listen carefully</li>
+                      </ul>
+                    </div>
+                  </div>
+
+                  {/* Step 2 */}
+                  <div className="flex gap-4">
+                    <div className="shrink-0 flex flex-col items-center">
+                      <div className="w-9 h-9 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold text-sm">
+                        2
+                      </div>
+                      <div className="w-px flex-1 bg-border mt-2" />
+                    </div>
+                    <div className="pb-4">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Clock className="h-4 w-4 text-amber-500" />
+                        <span className="font-semibold">Preparation</span>
+                        <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                          {Math.round((exercise.preparation_time ?? 120) / 60)} min
+                        </span>
+                      </div>
+                      <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
+                        <li>Organise your notes and plan your summary</li>
+                        <li>Develop a counterargument with evidence and logical reasoning</li>
+                        <li>Recording does not start until you are ready</li>
+                      </ul>
+                    </div>
+                  </div>
+
+                  {/* Step 3 */}
+                  <div className="flex gap-4">
+                    <div className="shrink-0">
+                      <div className="w-9 h-9 rounded-full bg-green-500/15 text-green-600 dark:text-green-400 flex items-center justify-center font-bold text-sm">
+                        3
+                      </div>
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <Mic className="h-4 w-4 text-green-500" />
+                        <span className="font-semibold">Critical Response</span>
+                        <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                          {Math.round((exercise.response_time ?? 120) / 60)} min
+                        </span>
+                      </div>
+                      <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
+                        <li>Summarise the argument (claim, evidence, explanation)</li>
+                        <li>State your counterargument with supporting evidence</li>
+                        <li>Conclude by reiterating your main points</li>
+                      </ul>
+                      <div className="mt-2 p-3 rounded-lg bg-muted/60 text-xs text-muted-foreground">
+                        Tip: Aim for ~1 minute on the summary and ~1 minute on your counterargument and conclusion
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Scoring breakdown */}
+            <Card>
+              <CardContent className="p-6">
+                <h3 className="font-semibold text-base mb-4">How you will be scored</h3>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium">Summary Accuracy</p>
+                      <p className="text-xs text-muted-foreground">Accurately restating the claim, evidence, and explanation from the audio</p>
+                    </div>
+                    <span className="text-lg font-bold text-primary shrink-0 ml-4">40%</span>
+                  </div>
+                  <div className="h-px bg-border" />
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium">Counterargument Quality</p>
+                      <p className="text-xs text-muted-foreground">Strength, relevance, and logical support of your counterargument</p>
+                    </div>
+                    <span className="text-lg font-bold text-primary shrink-0 ml-4">30%</span>
+                  </div>
+                  <div className="h-px bg-border" />
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium">Verbal Delivery</p>
+                      <p className="text-xs text-muted-foreground">Pronunciation, fluency, pace, and clarity of speech</p>
+                    </div>
+                    <span className="text-lg font-bold text-primary shrink-0 ml-4">30%</span>
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
             <Button size="lg" className="w-full" onClick={() => setStage("listen")}>
-              <Headphones className="h-4 w-4 mr-2" /> Start — Listen to Argument
+              <Headphones className="h-4 w-4 mr-2" /> I'm Ready — Start Listening
             </Button>
           </div>
         )}

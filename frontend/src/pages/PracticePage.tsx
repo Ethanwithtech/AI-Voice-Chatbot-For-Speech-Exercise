@@ -1,15 +1,15 @@
 import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
-import { Loader2, Upload, CheckCircle, ArrowLeft } from "lucide-react"
+import { Loader2, Upload, CheckCircle, ArrowLeft, Brain, BookOpen, MessageSquare, HelpCircle } from "lucide-react"
 import { api } from "@/lib/api"
 import { useAudioRecorder } from "@/hooks/useAudioRecorder"
 import { AudioRecorder } from "@/components/AudioRecorder"
 import { TranscriptDisplay } from "@/components/TranscriptDisplay"
 import { FeedbackPanel } from "@/components/FeedbackPanel"
 import { ProsodyChart } from "@/components/ProsodyChart"
-import { ExerciseCard } from "@/components/ExerciseCard"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 import type { Exercise } from "@/types/exercise"
 import type { AnalysisResult } from "@/types/practice"
 
@@ -21,6 +21,68 @@ const analyzeSteps = [
   { label: "Analyzing voice features...", icon: Loader2 },
   { label: "Generating feedback...", icon: Loader2 },
 ]
+
+const difficultyColors: Record<string, string> = {
+  easy: "bg-green-500/15 text-green-700 dark:text-green-400",
+  medium: "bg-amber-500/15 text-amber-700 dark:text-amber-400",
+  hard: "bg-red-500/15 text-red-700 dark:text-red-400",
+}
+
+const typeIcons: Record<string, React.ElementType> = {
+  read_aloud: BookOpen,
+  free_speech: MessageSquare,
+  qa: HelpCircle,
+  craa: Brain,
+}
+
+const typeLabels: Record<string, string> = {
+  read_aloud: "Read Aloud",
+  free_speech: "Free Speech",
+  qa: "Q&A",
+  craa: "CRAA",
+}
+
+function ExerciseGridCard({ exercise, onClick }: { exercise: Exercise; onClick: () => void }) {
+  const Icon = typeIcons[exercise.exercise_type] ?? MessageSquare
+  const isCRAA = exercise.exercise_type === "craa"
+
+  return (
+    <button
+      onClick={onClick}
+      className="group text-left w-full rounded-xl border border-border bg-card hover:border-primary/60 hover:shadow-lg transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+    >
+      <div className="p-5 flex flex-col h-full min-h-[200px]">
+        <div className="flex items-start justify-between gap-2 mb-3">
+          <div className={`p-2 rounded-lg ${isCRAA ? "bg-primary/10" : "bg-muted"}`}>
+            <Icon className={`h-5 w-5 ${isCRAA ? "text-primary" : "text-muted-foreground"}`} />
+          </div>
+          <div className="flex gap-1.5 flex-wrap justify-end">
+            <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${difficultyColors[exercise.difficulty] ?? "bg-muted text-muted-foreground"}`}>
+              {exercise.difficulty}
+            </span>
+            <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${isCRAA ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"}`}>
+              {typeLabels[exercise.exercise_type] ?? exercise.exercise_type}
+            </span>
+          </div>
+        </div>
+
+        <h3 className="font-semibold text-base leading-snug mb-2 group-hover:text-primary transition-colors">
+          {exercise.title}
+        </h3>
+
+        <p className="text-sm text-muted-foreground line-clamp-3 flex-1">
+          {exercise.description}
+        </p>
+
+        {exercise.teacher_name && (
+          <p className="text-xs text-muted-foreground mt-3 pt-3 border-t border-border">
+            By {exercise.teacher_name}
+          </p>
+        )}
+      </div>
+    </button>
+  )
+}
 
 export default function PracticePage() {
   const navigate = useNavigate()
@@ -36,6 +98,18 @@ export default function PracticePage() {
   useEffect(() => {
     api.get<Exercise[]>("/exercises/").then(setExercises).catch(console.error)
   }, [])
+
+  const handleStartExercise = (exercise: Exercise) => {
+    if (exercise.exercise_type === "craa") {
+      navigate(`/craa-practice?exerciseId=${exercise.id}`)
+      return
+    }
+    setSelectedExercise(exercise)
+    setStage("record")
+    setResult(null)
+    setError("")
+    recorder.reset()
+  }
 
   const handleStartPractice = () => {
     if (selectedExercise?.exercise_type === "craa") {
@@ -95,7 +169,6 @@ export default function PracticePage() {
             </Button>
             <h1 className="text-2xl font-bold">Practice Results</h1>
           </div>
-
           <div className="space-y-6">
             <TranscriptDisplay
               transcript={result.transcript}
@@ -112,7 +185,6 @@ export default function PracticePage() {
               areasToImprove={result.areas_to_improve}
               suggestions={result.suggestions}
             />
-
             <div className="flex gap-3 justify-center">
               <Button onClick={handleStartPractice}>Practice Again</Button>
               <Button variant="outline" onClick={() => navigate("/")}>Back to Dashboard</Button>
@@ -123,110 +195,87 @@ export default function PracticePage() {
     )
   }
 
+  if (stage === "record" || stage === "analyzing") {
+    return (
+      <div className="min-h-screen gradient-bg pt-20 pb-12 px-6">
+        <div className="max-w-3xl mx-auto">
+          <div className="flex items-center gap-4 mb-6">
+            <Button variant="ghost" onClick={() => { setStage("select"); recorder.reset() }}>
+              <ArrowLeft className="h-4 w-4 mr-2" /> Back
+            </Button>
+            {selectedExercise && <h1 className="text-xl font-bold">{selectedExercise.title}</h1>}
+          </div>
+          <Card>
+            <CardContent className="p-6">
+              {stage === "record" && (
+                <AudioRecorder
+                  state={recorder.state}
+                  countdown={recorder.countdown}
+                  duration={recorder.duration}
+                  analyserNode={recorder.analyserNode}
+                  onStart={recorder.startCountdown}
+                  onStop={handleStopAndAnalyze}
+                />
+              )}
+              {stage === "analyzing" && (
+                <div className="py-12 space-y-6">
+                  <div className="flex justify-center">
+                    <Loader2 className="h-10 w-10 animate-spin text-primary" />
+                  </div>
+                  <div className="max-w-xs mx-auto space-y-3">
+                    {analyzeSteps.map((step, idx) => (
+                      <div key={idx} className="flex items-center gap-3">
+                        {idx < analyzeStep ? (
+                          <CheckCircle className="h-5 w-5 text-green-500 shrink-0" />
+                        ) : idx === analyzeStep ? (
+                          <Loader2 className="h-5 w-5 animate-spin text-primary shrink-0" />
+                        ) : (
+                          <div className="h-5 w-5 rounded-full border-2 border-muted shrink-0" />
+                        )}
+                        <span className={`text-sm ${idx <= analyzeStep ? "text-foreground font-medium" : "text-muted-foreground"}`}>
+                          {step.label}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  {error && <p className="text-center text-sm text-destructive">{error}</p>}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen gradient-bg pt-20 pb-12 px-6">
-      <div className="max-w-5xl mx-auto">
-        <div className="flex items-center gap-4 mb-6">
+      <div className="max-w-6xl mx-auto">
+        <div className="flex items-center gap-4 mb-8">
           <Button variant="ghost" onClick={() => navigate("/")}>
             <ArrowLeft className="h-4 w-4 mr-2" /> Dashboard
           </Button>
-          <h1 className="text-2xl font-bold">Speech Practice</h1>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-1 space-y-3">
-            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-              Select Exercise
-            </h2>
-            {exercises.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No exercises available yet.</p>
-            ) : (
-              exercises.map(ex => (
-                <ExerciseCard
-                  key={ex.id} exercise={ex}
-                  selected={selectedExercise?.id === ex.id}
-                  onClick={() => setSelectedExercise(ex)}
-                />
-              ))
-            )}
-          </div>
-
-          <div className="lg:col-span-2">
-            <Card className="min-h-[400px]">
-              <CardContent className="p-6">
-                {stage === "select" && (
-                  <div className="text-center py-12">
-                    {selectedExercise ? (
-                      <div className="space-y-4">
-                        <h2 className="text-xl font-bold">{selectedExercise.title}</h2>
-                        <p className="text-muted-foreground max-w-md mx-auto">{selectedExercise.description}</p>
-                        {selectedExercise.reference_text && (
-                          <div className="mt-4 p-4 rounded-lg bg-muted/50 text-left max-w-lg mx-auto">
-                            <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase">Reference Text</p>
-                            <p className="text-sm leading-relaxed">{selectedExercise.reference_text}</p>
-                          </div>
-                        )}
-                        {selectedExercise.exercise_type === "craa" && (
-                          <div className="mt-2 p-3 rounded-lg bg-primary/5 border border-primary/20 max-w-lg mx-auto text-left">
-                            <p className="text-xs font-semibold text-primary uppercase mb-1">CRAA Exercise</p>
-                            <p className="text-sm text-muted-foreground">This exercise uses the Critical Response and Argument Analysis guided practice mode.</p>
-                          </div>
-                        )}
-                        <Button size="lg" onClick={handleStartPractice} className="mt-4">
-                          {selectedExercise.exercise_type === "craa" ? "Start CRAA Practice" : "Start Recording"}
-                        </Button>
-                      </div>
-                    ) : (
-                      <div className="text-muted-foreground">
-                        <p className="text-lg font-medium mb-2">Select an exercise to begin</p>
-                        <p className="text-sm">Choose from the list on the left, or start free practice</p>
-                        <Button variant="outline" className="mt-4" onClick={handleStartPractice}>
-                          Free Practice (No Exercise)
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {stage === "record" && (
-                  <AudioRecorder
-                    state={recorder.state}
-                    countdown={recorder.countdown}
-                    duration={recorder.duration}
-                    analyserNode={recorder.analyserNode}
-                    onStart={recorder.startCountdown}
-                    onStop={handleStopAndAnalyze}
-                  />
-                )}
-
-                {stage === "analyzing" && (
-                  <div className="py-12 space-y-6">
-                    <div className="flex justify-center">
-                      <Loader2 className="h-10 w-10 animate-spin text-primary" />
-                    </div>
-                    <div className="max-w-xs mx-auto space-y-3">
-                      {analyzeSteps.map((step, idx) => (
-                        <div key={idx} className="flex items-center gap-3">
-                          {idx < analyzeStep ? (
-                            <CheckCircle className="h-5 w-5 text-green-500 shrink-0" />
-                          ) : idx === analyzeStep ? (
-                            <Loader2 className="h-5 w-5 animate-spin text-primary shrink-0" />
-                          ) : (
-                            <div className="h-5 w-5 rounded-full border-2 border-muted shrink-0" />
-                          )}
-                          <span className={`text-sm ${idx <= analyzeStep ? "text-foreground font-medium" : "text-muted-foreground"}`}>
-                            {step.label}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                    {error && <p className="text-center text-sm text-destructive">{error}</p>}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+          <div>
+            <h1 className="text-2xl font-bold">Speech Practice</h1>
+            <p className="text-sm text-muted-foreground mt-0.5">Select an exercise to begin</p>
           </div>
         </div>
+
+        {exercises.length === 0 ? (
+          <div className="flex items-center justify-center py-24">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {exercises.map(ex => (
+              <ExerciseGridCard
+                key={ex.id}
+                exercise={ex}
+                onClick={() => handleStartExercise(ex)}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )
