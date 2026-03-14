@@ -44,4 +44,4 @@ build = ["bash", "/home/runner/workspace/build.sh"]
 [userenv.shared]
 POE_BOT_NAME = "GPT-4o-Mini"
 WHISPER_MODEL_SIZE = "base"
-STT_ENGINE = "elevenlabs"
+STT_ENGINE = "auto"
