@@ -1,0 +1,60 @@
+The deployment keeps timing out at the Bundle step (which is actually the health check after container startup). Build succeeds in seconds, layers push fine, but the app doesn't respond within the 8-minute timeout.
+
+The root cause is likely that the `faster-whisper` / CTranslate2 library is being imported at startup (during Python module loading), which is very slow on cold start. Even though STT is not needed for the health check, Python loads all imports when the app starts.
+
+Please make these changes:
+
+## Fix 1: Lazy-import faster-whisper (MOST IMPORTANT)
+
+In `backend/app/services/whisper_local_service.py`, change it so that `faster-whisper` is NOT imported at module level. Instead, import it only when actually needed (inside the function that does transcription). This prevents the slow CTranslate2 initialization from blocking app startup.
+
+Example pattern:
+```python
+# DON'T do this at the top of the file:
+# from faster_whisper import WhisperModel
+
+# DO this instead — import inside the function:
+def transcribe(audio_path: str):
+    from faster_whisper import WhisperModel  # lazy import
+    # ... rest of the code
+Also make sure no other file imports from whisper_local_service at module level in a way that triggers the heavy import chain. Check backend/app/main.py and any router that imports the whisper service.
+
+Fix 2: Make sure the health check endpoint responds instantly
+The health check is GET /api/health (or GET /). It should return 200 immediately without waiting for any background initialization. Verify:
+
+/api/health does NOT depend on database connection
+The SPA catch-all for / serves frontend/dist/index.html immediately
+Fix 3: Remove the Whisper pre-warm from build.sh
+The build.sh still contains the Whisper model pre-download code (lines 25-40). Even though it might be skipping it via cache, please remove those lines entirely to keep the build clean:
+
+bash
+#!/bin/bash
+set -e
+
+if [ -d "/home/runner/workspace/frontend/dist" ]; then
+  echo "=== Using pre-built frontend dist/ (skipping npm) ==="
+else
+  echo "=== Building frontend (dist/ not found, running npm) ==="
+  cd /home/runner/workspace/frontend
+  npm install --silent
+  npm run build
+  rm -rf /home/runner/workspace/frontend/node_modules
+fi
+
+echo "=== Installing backend dependencies ==="
+cd /home/runner/workspace/backend
+pip install -q -r requirements-prod.txt
+
+find /home/runner/workspace/backend -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+
+echo "=== Build complete ==="
+Fix 4: Add startup logging to confirm the app boots
+In backend/app/main.py, add a print right after the FastAPI app is created:
+
+python
+app = FastAPI(...)
+print("[BOOT] FastAPI app created, binding to port 5000...")
+After making these changes:
+Verify the dev environment still works: the app should start and /api/health should respond immediately
+Try deploying again — the bundle/health-check step should pass quickly now since the app no longer loads CTranslate2 at startup
+The key insight: The app needs to bind to port 5000 and serve HTTP within ~60 seconds. Currently, importing CTranslate2/faster-whisper takes too long and blocks this.
