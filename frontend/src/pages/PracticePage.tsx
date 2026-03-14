@@ -128,11 +128,11 @@ export default function PracticePage() {
 
   useEffect(() => {
     if (recorder.state === "stopped" && recorder.audioBlob) {
-      submitAudio(recorder.audioBlob)
+      submitAudio(recorder.audioBlob, recorder.transcript)
     }
   }, [recorder.state])
 
-  const submitAudio = async (blob: Blob) => {
+  const submitAudio = async (blob: Blob, transcript?: string) => {
     setStage("analyzing")
     setAnalyzeStep(0)
 
@@ -140,6 +140,9 @@ export default function PracticePage() {
     formData.append("audio", blob, "recording.webm")
     if (selectedExercise) {
       formData.append("exercise_id", String(selectedExercise.id))
+    }
+    if (transcript) {
+      formData.append("transcript", transcript)
     }
 
     const stepInterval = setInterval(() => {
@@ -170,6 +173,11 @@ export default function PracticePage() {
             <h1 className="text-2xl font-bold">Practice Results</h1>
           </div>
           <div className="space-y-6">
+            {result.transcription_source === "server" && (
+              <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400 text-sm">
+                <span>Transcription was performed server-side because browser speech recognition was not available.</span>
+              </div>
+            )}
             <TranscriptDisplay
               transcript={result.transcript}
               errors={result.errors}
@@ -215,6 +223,8 @@ export default function PracticePage() {
                   analyserNode={recorder.analyserNode}
                   onStart={recorder.startCountdown}
                   onStop={handleStopAndAnalyze}
+                  interimTranscript={recorder.interimTranscript}
+                  isSpeechRecognitionSupported={recorder.isSpeechRecognitionSupported}
                 />
               )}
               {stage === "analyzing" && (

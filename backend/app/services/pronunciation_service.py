@@ -53,7 +53,7 @@ def detect_pronunciation_issues(
     operations.reverse()
 
     for op, ref_idx, trans_idx in operations:
-        if op == "substitute" and trans_idx < len(word_timestamps):
+        if op == "substitute":
             ts = word_timestamps[trans_idx] if trans_idx < len(word_timestamps) else {}
             issues.append(PronunciationIssue(
                 word=trans_words[trans_idx],

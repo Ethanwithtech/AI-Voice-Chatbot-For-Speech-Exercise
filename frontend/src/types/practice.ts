@@ -35,6 +35,7 @@ export interface AnalysisScores {
 export interface AnalysisResult {
   transcript: string
   word_timestamps: Array<{ word: string; start: number; end: number }>
+  transcription_source?: "client" | "server"
   prosody: ProsodyMetrics
   pronunciation_issues: PronunciationIssue[]
   is_read_aloud: boolean | null

@@ -21,6 +21,7 @@ router = APIRouter()
 async def analyze_speech(
     audio: UploadFile = File(...),
     exercise_id: Optional[int] = Form(None),
+    transcript: Optional[str] = Form(None),
     current_user: dict = Depends(get_current_user),
 ):
     if current_user["role"] not in ("student", "admin", "teacher"):
@@ -57,10 +58,16 @@ async def analyze_speech(
         wav_path = convert_to_wav(upload_path)
         logger.info(f"[analyze] Audio saved and converted to WAV")
 
-        whisper_result = await transcribe_audio(wav_path)
-        transcript = whisper_result["transcript"]
-        word_timestamps = whisper_result["word_timestamps"]
-        logger.info(f"[analyze] Transcription: {len(transcript)} chars, {len(word_timestamps)} words")
+        word_timestamps = []
+        transcription_source = "client"
+        if transcript and transcript.strip():
+            logger.info(f"[analyze] Using client-provided transcript ({len(transcript)} chars), skipping Whisper")
+        else:
+            transcription_source = "server"
+            whisper_result = await transcribe_audio(wav_path)
+            transcript = whisper_result["transcript"]
+            word_timestamps = whisper_result["word_timestamps"]
+            logger.info(f"[analyze] Transcription: {len(transcript)} chars, {len(word_timestamps)} words")
 
         if not transcript.strip():
             cleanup_files(upload_path, wav_path)
@@ -103,6 +110,7 @@ async def analyze_speech(
         result = {
             "transcript": transcript,
             "word_timestamps": word_timestamps,
+            "transcription_source": transcription_source,
             "prosody": prosody_data,
             "pronunciation_issues": pron_issues_data,
             "is_read_aloud": is_read_aloud,
@@ -336,6 +344,7 @@ async def get_session_audio(session_id: int, current_user: dict = Depends(get_cu
 async def analyze_craa_response(
     audio: UploadFile = File(...),
     exercise_id: int = Form(...),
+    transcript: Optional[str] = Form(None),
     current_user: dict = Depends(get_current_user),
 ):
     if current_user["role"] not in ("student", "admin", "teacher"):
@@ -368,10 +377,16 @@ async def analyze_craa_response(
         wav_path = convert_to_wav(upload_path)
         logger.info("[craa-analyze] Audio saved and converted to WAV")
 
-        whisper_result = await transcribe_audio(wav_path)
-        transcript = whisper_result["transcript"]
-        word_timestamps = whisper_result["word_timestamps"]
-        logger.info(f"[craa-analyze] Transcription: {len(transcript)} chars")
+        word_timestamps = []
+        transcription_source = "client"
+        if transcript and transcript.strip():
+            logger.info(f"[craa-analyze] Using client-provided transcript ({len(transcript)} chars), skipping Whisper")
+        else:
+            transcription_source = "server"
+            whisper_result = await transcribe_audio(wav_path)
+            transcript = whisper_result["transcript"]
+            word_timestamps = whisper_result["word_timestamps"]
+            logger.info(f"[craa-analyze] Transcription: {len(transcript)} chars")
 
         if not transcript.strip():
             cleanup_files(upload_path, wav_path)
@@ -449,6 +464,7 @@ async def analyze_craa_response(
         return {
             "session_id": session.id,
             "transcript": transcript,
+            "transcription_source": transcription_source,
             "overall_grade": overall_grade,
             "summary_score": summary_score,
             "counterargument_score": counterargument_score,

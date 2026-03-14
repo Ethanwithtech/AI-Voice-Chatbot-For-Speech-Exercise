@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react"
-import { Mic, Square } from "lucide-react"
+import { Mic, Square, AlertTriangle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { formatDuration } from "@/lib/audio"
 import { type RecordingState } from "@/hooks/useAudioRecorder"
@@ -11,10 +11,13 @@ interface AudioRecorderProps {
   analyserNode: AnalyserNode | null
   onStart: () => void
   onStop: () => void
+  interimTranscript?: string
+  isSpeechRecognitionSupported?: boolean
 }
 
 export function AudioRecorder({
   state, countdown, duration, analyserNode, onStart, onStop,
+  interimTranscript, isSpeechRecognitionSupported,
 }: AudioRecorderProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const animationRef = useRef<number>(0)
@@ -98,6 +101,12 @@ export function AudioRecorder({
           className="w-full max-w-md rounded-lg bg-slate-950/5 dark:bg-slate-950/50"
         />
 
+        {interimTranscript && (
+          <div className="w-full max-w-md px-3 py-2 rounded-lg bg-muted/50 border border-border">
+            <p className="text-xs text-muted-foreground italic truncate">{interimTranscript}</p>
+          </div>
+        )}
+
         <Button
           variant="destructive"
           size="lg"
@@ -113,6 +122,12 @@ export function AudioRecorder({
 
   return (
     <div className="flex flex-col items-center justify-center py-16 gap-6">
+      {isSpeechRecognitionSupported === false && (
+        <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400 text-sm max-w-md text-center">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          <span>Live transcription is not supported in this browser. Please use Chrome or Edge for the best experience.</span>
+        </div>
+      )}
       <button
         onClick={onStart}
         className="w-28 h-28 rounded-full gradient-primary flex items-center justify-center shadow-xl hover:shadow-2xl transition-all cursor-pointer hover:scale-105 active:scale-95"

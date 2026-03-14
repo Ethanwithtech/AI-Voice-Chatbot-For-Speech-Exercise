@@ -13,6 +13,7 @@ type Stage = "intro" | "listen" | "prepare" | "record" | "analyzing" | "result"
 interface CRAAResult {
   session_id: number
   transcript: string
+  transcription_source?: "client" | "server"
   overall_grade: number
   summary_score: number
   counterargument_score: number
@@ -230,19 +231,21 @@ export default function CRAAPracticePage() {
     return () => clearTimeout(timer)
   }, [stage, recorder.state, recCountdown])
 
-  // Submit when recording stops
   useEffect(() => {
     if (recorder.state === "stopped" && recorder.audioBlob && stage === "record") {
-      submitCRAAResponse(recorder.audioBlob)
+      submitCRAAResponse(recorder.audioBlob, recorder.transcript)
     }
   }, [recorder.state])
 
-  const submitCRAAResponse = async (blob: Blob) => {
+  const submitCRAAResponse = async (blob: Blob, transcript?: string) => {
     setStage("analyzing")
     setError("")
     const formData = new FormData()
     formData.append("audio", blob, "craa_response.webm")
     formData.append("exercise_id", exerciseId!)
+    if (transcript) {
+      formData.append("transcript", transcript)
+    }
 
     try {
       const data = await api.upload<CRAAResult>("/practice/craa-analyze", formData)
@@ -587,6 +590,11 @@ export default function CRAAPracticePage() {
             <CardContent className="p-8 text-center space-y-6">
               <h2 className="text-xl font-bold">Recording Your Response</h2>
               <CountdownRing seconds={recCountdown} total={exercise.response_time ?? 120} />
+              {!recorder.isSpeechRecognitionSupported && (
+                <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400 text-sm">
+                  <span>Live transcription is not supported in this browser. Please use Chrome or Edge for the best experience.</span>
+                </div>
+              )}
               {recorder.state === "idle" || recorder.state === "countdown" ? (
                 <div className="space-y-2">
                   <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
@@ -598,6 +606,11 @@ export default function CRAAPracticePage() {
                     <div className="w-3 h-3 rounded-full bg-red-500 animate-pulse" />
                     <span className="font-medium text-red-500">Recording</span>
                   </div>
+                  {recorder.interimTranscript && (
+                    <div className="px-3 py-2 rounded-lg bg-muted/50 border border-border">
+                      <p className="text-xs text-muted-foreground italic truncate">{recorder.interimTranscript}</p>
+                    </div>
+                  )}
                   <p className="text-sm text-muted-foreground">Speak clearly. Recording stops automatically when time runs out.</p>
                   <Button variant="destructive" onClick={() => recorder.stopRecording()}>
                     Stop Recording Early
@@ -635,6 +648,11 @@ export default function CRAAPracticePage() {
         {/* RESULT */}
         {stage === "result" && result && (
           <div className="space-y-6">
+            {result.transcription_source === "server" && (
+              <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400 text-sm">
+                <span>Transcription was performed server-side because browser speech recognition was not available.</span>
+              </div>
+            )}
             <Card>
               <CardContent className="p-6 text-center">
                 <Brain className="h-10 w-10 mx-auto text-primary mb-3" />
