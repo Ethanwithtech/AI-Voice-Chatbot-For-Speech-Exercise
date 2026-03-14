@@ -6,6 +6,11 @@ cd /home/runner/workspace/frontend
 npm install --silent
 npm run build
 
+# Remove node_modules after build — only dist/ is needed at runtime
+echo "=== Cleaning frontend node_modules (not needed at runtime) ==="
+rm -rf /home/runner/workspace/frontend/node_modules
+echo "node_modules removed — saves ~240MB from bundle"
+
 echo "=== Installing backend dependencies ==="
 cd /home/runner/workspace/backend
 
@@ -31,5 +36,9 @@ whisper.load_model(model_size)
 print('Whisper model downloaded and cached')
 " || echo "WARNING: Whisper model download failed — will retry on first use"
 fi
+
+# Clean up pycache to reduce bundle size
+echo "=== Cleaning __pycache__ ==="
+find /home/runner/workspace/backend -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 
 echo "=== Build complete ==="
