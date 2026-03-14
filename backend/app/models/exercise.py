@@ -59,5 +59,6 @@ class ExerciseResponse(BaseModel):
     key_claim: Optional[str] = None
     preparation_time: Optional[int] = None
     response_time: Optional[int] = None
+    has_narration_audio: Optional[bool] = False
     has_argument_audio: Optional[bool] = False
     video_url: Optional[str] = None

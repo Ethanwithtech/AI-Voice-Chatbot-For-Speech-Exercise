@@ -16,6 +16,7 @@ export interface Exercise {
   key_claim?: string | null
   preparation_time?: number | null
   response_time?: number | null
+  has_narration_audio?: boolean
   has_argument_audio?: boolean
   video_url?: string | null
 }

@@ -120,8 +120,11 @@ export default function CRAAPracticePage() {
   const [recCountdown, setRecCountdown] = useState(0)
   const [result, setResult] = useState<CRAAResult | null>(null)
   const [error, setError] = useState("")
-  const [isPlayingArgument, setIsPlayingArgument] = useState(false)
-  const [audioLoading, setAudioLoading] = useState(false)
+
+  // Audio playback state for the listen stage
+  const [audioStatus, setAudioStatus] = useState<"idle" | "loading" | "playing-narration" | "playing-argument" | "done">("idle")
+  const [audioError, setAudioError] = useState("")
+  const narrationAudioRef = useRef<HTMLAudioElement | null>(null)
   const argumentAudioRef = useRef<HTMLAudioElement | null>(null)
 
   const recorder = useAudioRecorder()
@@ -144,38 +147,63 @@ export default function CRAAPracticePage() {
       .catch(() => navigate("/practice"))
   }, [exerciseId])
 
-  const playArgumentAudio = useCallback(() => {
-    if (!exerciseId) return
-    if (argumentAudioRef.current) {
-      if (isPlayingArgument) {
-        argumentAudioRef.current.pause()
-        setIsPlayingArgument(false)
-      } else {
-        argumentAudioRef.current.play()
-        setIsPlayingArgument(true)
-      }
-      return
-    }
-    setAudioLoading(true)
+  const fetchAudioBlob = useCallback(async (url: string): Promise<HTMLAudioElement> => {
     const token = localStorage.getItem("token")
-    fetch(`/api/exercises/${exerciseId}/argument-audio`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then(res => {
-        if (!res.ok) throw new Error("No audio")
-        return res.blob()
-      })
-      .then(blob => {
-        const url = URL.createObjectURL(blob)
-        const audio = new Audio(url)
-        audio.addEventListener("ended", () => setIsPlayingArgument(false))
-        argumentAudioRef.current = audio
-        audio.play()
-        setIsPlayingArgument(true)
-      })
-      .catch(() => {})
-      .finally(() => setAudioLoading(false))
-  }, [exerciseId, isPlayingArgument])
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+    if (!res.ok) throw new Error("Audio unavailable")
+    const blob = await res.blob()
+    return new Audio(URL.createObjectURL(blob))
+  }, [])
+
+  const playArgumentAudio = useCallback((audioEl: HTMLAudioElement) => {
+    argumentAudioRef.current = audioEl
+    audioEl.addEventListener("ended", () => setAudioStatus("done"))
+    setAudioStatus("playing-argument")
+    audioEl.play().catch(() => setAudioStatus("done"))
+  }, [])
+
+  const startListening = useCallback(async () => {
+    if (!exerciseId || !exercise) return
+    setAudioStatus("loading")
+    setAudioError("")
+    try {
+      if (exercise.has_narration_audio) {
+        const narrationEl = await fetchAudioBlob(`/api/exercises/${exerciseId}/narration-audio`)
+        narrationAudioRef.current = narrationEl
+        if (exercise.has_argument_audio) {
+          const argumentEl = await fetchAudioBlob(`/api/exercises/${exerciseId}/argument-audio`)
+          narrationEl.addEventListener("ended", () => playArgumentAudio(argumentEl))
+        } else {
+          narrationEl.addEventListener("ended", () => setAudioStatus("done"))
+        }
+        setAudioStatus("playing-narration")
+        narrationEl.play().catch(() => setAudioStatus("done"))
+      } else if (exercise.has_argument_audio) {
+        const argumentEl = await fetchAudioBlob(`/api/exercises/${exerciseId}/argument-audio`)
+        playArgumentAudio(argumentEl)
+      } else {
+        setAudioStatus("done")
+      }
+    } catch {
+      setAudioError("Could not load audio. You may still read the argument text below.")
+      setAudioStatus("done")
+    }
+  }, [exerciseId, exercise, fetchAudioBlob, playArgumentAudio])
+
+  const replayAudio = useCallback(() => {
+    narrationAudioRef.current?.pause()
+    argumentAudioRef.current?.pause()
+    narrationAudioRef.current = null
+    argumentAudioRef.current = null
+    startListening()
+  }, [startListening])
+
+  // Auto-start audio when entering listen stage
+  useEffect(() => {
+    if (stage === "listen" && audioStatus === "idle") {
+      startListening()
+    }
+  }, [stage])
 
   // Countdown timer for prepare stage
   useEffect(() => {
@@ -421,48 +449,120 @@ export default function CRAAPracticePage() {
 
         {/* LISTEN */}
         {stage === "listen" && (
-          <Card>
-            <CardContent className="p-8 text-center space-y-6">
-              <Headphones className="h-16 w-16 mx-auto text-primary" />
-              <h2 className="text-xl font-bold">Listen to the Argument</h2>
-
-              {exercise.argument_text && (
-                <div className="text-left p-4 rounded-lg bg-muted/50 max-h-64 overflow-y-auto">
-                  <p className="text-xs font-semibold text-muted-foreground uppercase mb-2">Argument Text</p>
-                  <p className="text-sm leading-relaxed">{exercise.argument_text}</p>
+          <div className="space-y-4">
+            <Card>
+              <CardContent className="p-8 space-y-6">
+                <div className="text-center">
+                  <h2 className="text-xl font-bold mb-1">Listening Stage</h2>
+                  <p className="text-sm text-muted-foreground">The audio is played once. Take notes as you listen.</p>
                 </div>
-              )}
 
-              {exercise.has_argument_audio && (
-                <Button
-                  variant="outline"
-                  size="lg"
-                  onClick={playArgumentAudio}
-                  disabled={audioLoading}
-                >
-                  {audioLoading ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <Volume2 className="h-4 w-4 mr-2" />
+                {/* Audio playback status */}
+                <div className="rounded-xl border border-border bg-muted/40 p-5 space-y-4">
+                  {audioStatus === "loading" && (
+                    <div className="flex items-center justify-center gap-3 py-2">
+                      <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                      <span className="text-sm font-medium">Loading audio...</span>
+                    </div>
                   )}
-                  {isPlayingArgument ? "Pause Audio" : "Play Argument Audio"}
+
+                  {(audioStatus === "playing-narration" || audioStatus === "playing-argument" || audioStatus === "done") && (
+                    <div className="space-y-3">
+                      {/* Clip 1 row */}
+                      <div className="flex items-center gap-3">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
+                          audioStatus === "playing-narration"
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-green-500/15 text-green-600 dark:text-green-400"
+                        }`}>
+                          {audioStatus === "playing-narration"
+                            ? <Volume2 className="h-4 w-4 animate-pulse" />
+                            : <CheckCircle className="h-4 w-4" />
+                          }
+                        </div>
+                        <div className="flex-1">
+                          <p className={`text-sm font-medium ${audioStatus === "playing-narration" ? "text-foreground" : "text-muted-foreground"}`}>
+                            Part 1: Background Information
+                          </p>
+                          {audioStatus === "playing-narration" && (
+                            <p className="text-xs text-primary font-medium mt-0.5">Now playing...</p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Clip 2 row */}
+                      <div className="flex items-center gap-3">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
+                          audioStatus === "playing-argument"
+                            ? "bg-primary text-primary-foreground"
+                            : audioStatus === "done"
+                            ? "bg-green-500/15 text-green-600 dark:text-green-400"
+                            : "bg-muted text-muted-foreground"
+                        }`}>
+                          {audioStatus === "playing-argument"
+                            ? <Volume2 className="h-4 w-4 animate-pulse" />
+                            : audioStatus === "done"
+                            ? <CheckCircle className="h-4 w-4" />
+                            : <span className="text-xs font-bold">2</span>
+                          }
+                        </div>
+                        <div className="flex-1">
+                          <p className={`text-sm font-medium ${
+                            audioStatus === "playing-argument" ? "text-foreground"
+                            : audioStatus === "done" ? "text-muted-foreground"
+                            : "text-muted-foreground opacity-50"
+                          }`}>
+                            Part 2: The Argument
+                          </p>
+                          {audioStatus === "playing-argument" && (
+                            <p className="text-xs text-primary font-medium mt-0.5">Now playing...</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {audioError && (
+                    <p className="text-xs text-destructive text-center">{audioError}</p>
+                  )}
+
+                  {audioStatus === "done" && (
+                    <div className="text-center pt-1">
+                      <button
+                        onClick={replayAudio}
+                        className="text-xs text-primary underline underline-offset-2 hover:no-underline"
+                      >
+                        Replay audio
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Argument text (visible once audio is done or if no audio) */}
+                {exercise.argument_text && audioStatus === "done" && (
+                  <div className="text-left p-4 rounded-lg bg-muted/50 max-h-56 overflow-y-auto">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase mb-2">Argument (for reference)</p>
+                    <p className="text-sm leading-relaxed">{exercise.argument_text}</p>
+                  </div>
+                )}
+
+                <Button
+                  size="lg"
+                  className="w-full"
+                  disabled={audioStatus !== "done"}
+                  onClick={() => {
+                    narrationAudioRef.current?.pause()
+                    argumentAudioRef.current?.pause()
+                    setPrepCountdown(exercise.preparation_time ?? 120)
+                    setStage("prepare")
+                  }}
+                >
+                  <Clock className="h-4 w-4 mr-2" />
+                  {audioStatus === "done" ? "I'm Ready — Start Preparation Time" : "Waiting for audio to finish..."}
                 </Button>
-              )}
-
-              <p className="text-sm text-muted-foreground">
-                Read or listen to the argument above, then click below to begin your preparation time.
-              </p>
-
-              <Button size="lg" className="w-full" onClick={() => {
-                if (argumentAudioRef.current) argumentAudioRef.current.pause()
-                setIsPlayingArgument(false)
-                setPrepCountdown(exercise.preparation_time ?? 120)
-                setStage("prepare")
-              }}>
-                <Clock className="h-4 w-4 mr-2" /> I'm Ready — Start Preparation Time
-              </Button>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </div>
         )}
 
         {/* PREPARE */}

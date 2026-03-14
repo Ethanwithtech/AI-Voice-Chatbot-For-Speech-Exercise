@@ -26,6 +26,7 @@ def _exercise_to_response(ex: Exercise, teacher_name: str = None) -> ExerciseRes
         key_claim=ex.key_claim,
         preparation_time=ex.preparation_time,
         response_time=ex.response_time,
+        has_narration_audio=bool(ex.narration_audio_data),
         has_argument_audio=bool(ex.argument_audio_data),
         video_url=ex.video_url,
     )
@@ -123,6 +124,55 @@ async def delete_exercise(exercise_id: int, teacher: dict = Depends(require_teac
         db.delete(ex)
         db.commit()
         return {"message": "Exercise deleted successfully"}
+    finally:
+        db.close()
+
+
+@router.post("/{exercise_id}/narration-audio")
+async def upload_narration_audio(
+    exercise_id: int,
+    audio: UploadFile = File(...),
+    teacher: dict = Depends(require_teacher),
+):
+    db = get_db()
+    try:
+        ex = db.query(Exercise).filter(Exercise.id == exercise_id).first()
+        if not ex:
+            raise HTTPException(status_code=404, detail="Exercise not found")
+        if ex.teacher_id != teacher["id"] and teacher["role"] != "admin":
+            raise HTTPException(status_code=403, detail="You can only edit your own exercises")
+        file_bytes = await audio.read()
+        if len(file_bytes) > 50 * 1024 * 1024:
+            raise HTTPException(status_code=400, detail="Audio file too large (max 50MB)")
+        content_type = (audio.content_type or "audio/mpeg").split(";")[0].strip()
+        ex.narration_audio_data = file_bytes
+        ex.narration_audio_type = content_type
+        db.commit()
+        return {"message": "Narration audio uploaded successfully", "size": len(file_bytes)}
+    finally:
+        db.close()
+
+
+@router.get("/{exercise_id}/narration-audio")
+async def get_narration_audio(exercise_id: int, current_user: dict = Depends(get_current_user)):
+    db = get_db()
+    try:
+        ex = db.query(Exercise).filter(Exercise.id == exercise_id).first()
+        if not ex:
+            raise HTTPException(status_code=404, detail="Exercise not found")
+        if not ex.narration_audio_data:
+            raise HTTPException(status_code=404, detail="No narration audio available")
+        content_type = ex.narration_audio_type or "audio/mpeg"
+        ext_map = {
+            "audio/webm": ".webm", "audio/wav": ".wav", "audio/mp3": ".mp3",
+            "audio/mpeg": ".mp3", "audio/ogg": ".ogg", "audio/mp4": ".mp4",
+        }
+        ext = ext_map.get(content_type, ".mp3")
+        return Response(
+            content=ex.narration_audio_data,
+            media_type=content_type,
+            headers={"Content-Disposition": f"inline; filename=narration_{exercise_id}{ext}"},
+        )
     finally:
         db.close()
 

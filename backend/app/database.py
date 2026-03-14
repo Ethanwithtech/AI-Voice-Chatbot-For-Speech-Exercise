@@ -64,6 +64,8 @@ class Exercise(Base):
 
     # CRAA-specific fields
     argument_text = Column(Text, nullable=True)
+    narration_audio_data = Column(LargeBinary, nullable=True)
+    narration_audio_type = Column(String(100), nullable=True)
     argument_audio_data = Column(LargeBinary, nullable=True)
     argument_audio_type = Column(String(100), nullable=True)
     topic_context = Column(Text, nullable=True)
@@ -171,6 +173,10 @@ def _run_migrations(logger):
         ex_cols = {col["name"] for col in inspector.get_columns("exercises")}
         if "argument_text" not in ex_cols:
             migrations.append("ALTER TABLE exercises ADD COLUMN argument_text TEXT")
+        if "narration_audio_data" not in ex_cols:
+            migrations.append("ALTER TABLE exercises ADD COLUMN narration_audio_data BYTEA")
+        if "narration_audio_type" not in ex_cols:
+            migrations.append("ALTER TABLE exercises ADD COLUMN narration_audio_type VARCHAR(100)")
         if "argument_audio_data" not in ex_cols:
             migrations.append("ALTER TABLE exercises ADD COLUMN argument_audio_data BYTEA")
         if "argument_audio_type" not in ex_cols:
