@@ -37,6 +37,8 @@ class User(Base):
     password_hash = Column(String(255), nullable=True)
     role = Column(String(20), nullable=False, default="student")
     student_code = Column(String(20), unique=True, nullable=True)
+    section = Column(String(20), nullable=True)         # Class section e.g. "A1"
+    is_approved = Column(Boolean, nullable=True, default=True)  # For teacher access requests
     created_at = Column(DateTime, default=datetime.utcnow)
 
     exercises = relationship("Exercise", back_populates="teacher", cascade="all, delete-orphan")
@@ -181,6 +183,16 @@ def _run_migrations():
                     conn.execute(text("ALTER TABLE exercises ADD COLUMN argument_audio_data BYTEA"))
 
     # token_usage table is handled by create_all() if it doesn't exist
+
+    # Migrate users table for new fields
+    if "users" in existing_tables:
+        columns = [col["name"] for col in inspector.get_columns("users")]
+
+        with engine.begin() as conn:
+            if "section" not in columns:
+                conn.execute(text("ALTER TABLE users ADD COLUMN section VARCHAR(20)"))
+            if "is_approved" not in columns:
+                conn.execute(text("ALTER TABLE users ADD COLUMN is_approved BOOLEAN DEFAULT TRUE"))
 
 
 def get_db():

@@ -29,6 +29,8 @@ def user_to_dict(user: User) -> dict:
         "password_hash": user.password_hash,
         "role": user.role,
         "student_code": user.student_code,
+        "section": user.section,
+        "is_approved": user.is_approved,
         "created_at": user.created_at.isoformat() if user.created_at else None,
     }
 

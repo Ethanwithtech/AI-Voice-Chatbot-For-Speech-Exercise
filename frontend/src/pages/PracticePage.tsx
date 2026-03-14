@@ -184,14 +184,33 @@ export default function PracticePage() {
                 )}
 
                 {stage === "record" && (
-                  <AudioRecorder
-                    state={recorder.state}
-                    countdown={recorder.countdown}
-                    duration={recorder.duration}
-                    analyserNode={recorder.analyserNode}
-                    onStart={recorder.startCountdown}
-                    onStop={handleStopAndAnalyze}
-                  />
+                  <div className="space-y-4">
+                    {/* Show exercise materials during recording */}
+                    {selectedExercise && (
+                      <div className="space-y-3">
+                        <h3 className="text-sm font-semibold text-muted-foreground uppercase text-center">
+                          {selectedExercise.title}
+                        </h3>
+                        {selectedExercise.reference_text && (
+                          <div className="p-4 rounded-lg bg-muted/50 border max-h-40 overflow-y-auto">
+                            <p className="text-xs font-semibold text-muted-foreground mb-1 uppercase">Reference Text</p>
+                            <p className="text-sm leading-relaxed">{selectedExercise.reference_text}</p>
+                          </div>
+                        )}
+                        {!selectedExercise.reference_text && selectedExercise.description && (
+                          <p className="text-sm text-muted-foreground text-center px-4">{selectedExercise.description}</p>
+                        )}
+                      </div>
+                    )}
+                    <AudioRecorder
+                      state={recorder.state}
+                      countdown={recorder.countdown}
+                      duration={recorder.duration}
+                      analyserNode={recorder.analyserNode}
+                      onStart={recorder.startCountdown}
+                      onStop={handleStopAndAnalyze}
+                    />
+                  </div>
                 )}
 
                 {stage === "analyzing" && (
