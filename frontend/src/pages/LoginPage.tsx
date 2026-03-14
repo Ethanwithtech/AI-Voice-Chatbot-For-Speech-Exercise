@@ -316,7 +316,12 @@ export default function LoginPage() {
             className="text-center text-2xl font-mono tracking-wider" />
           <div className="p-3 rounded-lg bg-muted/50 text-center">
             <p className="text-xs text-muted-foreground mb-1">Your Student ID will be</p>
-            <p className="font-mono text-xl font-bold text-primary">{regDigits}-{regInitials}{regSection ? `-${regSection}` : ""}</p>
+            <p className="font-mono text-xl font-bold text-primary">
+              {regDigits}-{regInitials}-{regSection || <span className="text-muted-foreground">XX</span>}
+            </p>
+            {!regSection && (
+              <p className="text-xs text-muted-foreground mt-1">(XX will be generated randomly if left blank)</p>
+            )}
           </div>
           {error && <p className="text-sm text-destructive text-center">{error}</p>}
           <Button className="w-full" onClick={finishRegistration} disabled={loading}>

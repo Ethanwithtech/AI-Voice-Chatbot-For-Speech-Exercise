@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
-import { ArrowLeft, Users, UserPlus, Eye, GraduationCap } from "lucide-react"
+import { ArrowLeft, Users, UserPlus, Eye, GraduationCap, Clock, CheckCircle, ShieldCheck } from "lucide-react"
 import { api } from "@/lib/api"
 import { useAuth, type User } from "@/lib/auth"
 import { Button } from "@/components/ui/button"
@@ -15,8 +15,10 @@ export default function StudentManagePage() {
   const { isAdmin } = useAuth()
   const [students, setStudents] = useState<User[]>([])
   const [teachers, setTeachers] = useState<User[]>([])
+  const [pendingTeachers, setPendingTeachers] = useState<User[]>([])
   const [tab, setTab] = useState<"students" | "teachers">("students")
   const [loading, setLoading] = useState(true)
+  const [approvingId, setApprovingId] = useState<number | null>(null)
 
   const [registerOpen, setRegisterOpen] = useState(false)
   const [regName, setRegName] = useState("")
@@ -34,10 +36,24 @@ export default function StudentManagePage() {
     Promise.all([
       api.get<User[]>("/users/students"),
       isAdmin ? api.get<User[]>("/users/teachers") : Promise.resolve([]),
+      isAdmin ? api.get<User[]>("/auth/pending-teachers").catch(() => []) : Promise.resolve([]),
     ])
-      .then(([s, t]) => { setStudents(s); setTeachers(t) })
+      .then(([s, t, p]) => { setStudents(s); setTeachers(t); setPendingTeachers(p as User[]) })
       .catch(console.error)
       .finally(() => setLoading(false))
+  }
+
+  const handleApprove = async (userId: number) => {
+    setApprovingId(userId)
+    try {
+      await api.put(`/auth/approve-teacher/${userId}`, {})
+      setPendingTeachers(prev => prev.filter(t => t.id !== userId))
+      loadData()
+    } catch (err) {
+      console.error("Approval failed:", err)
+    } finally {
+      setApprovingId(null)
+    }
   }
 
   const handleRegister = async (e: React.FormEvent) => {
@@ -100,7 +116,57 @@ export default function StudentManagePage() {
         {loading ? (
           <div className="text-center py-12 text-muted-foreground">Loading...</div>
         ) : (
-          <div className="space-y-3">
+          <>
+            {/* Pending Teachers Approval Section */}
+            {isAdmin && tab === "teachers" && pendingTeachers.length > 0 && (
+              <div className="mb-6">
+                <div className="flex items-center gap-2 mb-3">
+                  <Clock className="h-4 w-4 text-amber-500" />
+                  <h2 className="text-base font-semibold">Pending Approval ({pendingTeachers.length})</h2>
+                </div>
+                <div className="space-y-3">
+                  {pendingTeachers.map(teacher => (
+                    <Card key={teacher.id} className="border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20">
+                      <CardContent className="p-4 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center">
+                            <Clock className="h-5 w-5 text-amber-600" />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium">{teacher.name}</p>
+                              <Badge variant="secondary" className="bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300">
+                                Pending
+                              </Badge>
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              {teacher.email || "N/A"}
+                              {teacher.created_at && ` · Requested ${new Date(teacher.created_at).toLocaleDateString("en-US", { timeZone: "Asia/Hong_Kong" })}`}
+                            </p>
+                          </div>
+                        </div>
+                        <Button
+                          size="sm"
+                          onClick={() => handleApprove(teacher.id)}
+                          disabled={approvingId === teacher.id}
+                          className="gap-1.5"
+                        >
+                          {approvingId === teacher.id ? (
+                            "Approving..."
+                          ) : (
+                            <>
+                              <CheckCircle className="h-3.5 w-3.5" /> Approve
+                            </>
+                          )}
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-3">
             {(tab === "students" ? students : teachers).map(user => (
               <Card key={user.id} className="hover:shadow-md transition-all">
                 <CardContent className="p-4 flex items-center justify-between">
@@ -140,6 +206,7 @@ export default function StudentManagePage() {
               </Card>
             )}
           </div>
+          </>
         )}
 
         <Dialog open={registerOpen} onClose={() => setRegisterOpen(false)}>

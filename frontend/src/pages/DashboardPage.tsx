@@ -66,7 +66,9 @@ export default function DashboardPage() {
       <div className="max-w-5xl mx-auto">
         <div className="mb-10">
           <h1 className="text-3xl font-bold mb-2">
-            Welcome, <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">{user?.name}</span>
+            Welcome, <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+              {user?.role === "student" && user?.student_code ? user.student_code : user?.name}
+            </span>
           </h1>
           <p className="text-muted-foreground">
             {isTeacher
