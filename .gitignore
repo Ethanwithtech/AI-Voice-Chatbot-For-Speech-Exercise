@@ -2,6 +2,9 @@ node_modules/
 client/node_modules/
 server/node_modules/
 dist/
+# Allow pre-built frontend dist to be committed (speeds up deployment — skips npm install)
+!frontend/dist/
+!frontend/dist/**
 .env
 *.log
 /tmp/uploads/
