@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, Response
 from app.config import settings
-from app.database import init_db, get_db, User
+from app.database import init_db, get_db, User, Exercise
 from app.routers import auth_router, exercise_router, practice_router, user_router
 
 os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
@@ -41,14 +41,6 @@ async def health_check():
         "stt_engine": stt_engine,
     }
 
-
-@app.get("/api/debug-headers")
-async def debug_headers(request: Request):
-    return {
-        "headers": dict(request.headers),
-        "url": str(request.url),
-        "client": request.client.host if request.client else None,
-    }
 
 
 app.include_router(auth_router.router, prefix="/api/auth", tags=["Authentication"])
@@ -98,7 +90,7 @@ def startup():
 
 
 def _startup_background():
-    """Run DB migrations and admin setup in background so port binds instantly."""
+    """Run DB migrations, admin setup, and exercise seeding in background."""
     logger = logging.getLogger(__name__)
     try:
         logger.info("[startup] Running DB init in background...")
@@ -111,6 +103,11 @@ def _startup_background():
         _ensure_admin()
     except Exception as e:
         logger.error(f"[startup] Admin setup failed (non-fatal): {e}")
+
+    try:
+        _seed_exercises()
+    except Exception as e:
+        logger.error(f"[startup] Exercise seeding failed (non-fatal): {e}")
 
 
 def _ensure_admin():
@@ -142,5 +139,46 @@ def _ensure_admin():
     except Exception as e:
         logger.error(f"[startup] Failed to ensure admin user: {e}")
         raise
+    finally:
+        db.close()
+
+
+def _seed_exercises():
+    """Seed default CRAA exercises if the exercises table is empty."""
+    logger = logging.getLogger(__name__)
+    db = get_db()
+    try:
+        craa_count = db.query(Exercise).filter(Exercise.exercise_type == "craa").count()
+        if craa_count > 0:
+            logger.info(f"[startup] {craa_count} CRAA exercise(s) already exist, skipping seed")
+            return
+
+        import sys as _sys
+        _sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__))))
+        from seed_craa import CRAA_EXERCISES
+
+        admin = db.query(User).filter(User.role.in_(["admin", "teacher"])).first()
+        if not admin:
+            logger.warning("[startup] No admin/teacher found, cannot seed exercises")
+            return
+
+        for data in CRAA_EXERCISES:
+            ex = Exercise(
+                teacher_id=admin.id,
+                title=data["title"],
+                description=data["description"],
+                difficulty=data["difficulty"],
+                exercise_type="craa",
+                topic_context=data["topic_context"],
+                key_claim=data["key_claim"],
+                argument_text=data["argument_text"],
+                preparation_time=data["preparation_time"],
+                response_time=data["response_time"],
+                video_url=data.get("video_url"),
+            )
+            db.add(ex)
+
+        db.commit()
+        logger.info(f"[startup] Seeded {len(CRAA_EXERCISES)} CRAA exercises")
     finally:
         db.close()
