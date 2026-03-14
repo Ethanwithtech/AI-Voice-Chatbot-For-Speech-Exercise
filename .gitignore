@@ -8,3 +8,4 @@ dist/
 .env
 *.log
 /tmp/uploads/
+backend/.model_cache/
