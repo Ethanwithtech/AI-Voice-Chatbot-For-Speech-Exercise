@@ -1,4 +1,5 @@
 import logging
+import random
 from fastapi import APIRouter, HTTPException, status, Depends
 import bcrypt
 from app.database import get_db, User
@@ -65,7 +66,19 @@ async def student_register(data: StudentRegisterInput):
         if not initials or len(initials) < 1 or len(initials) > 4 or not initials.isalpha():
             raise HTTPException(status_code=400, detail="Please enter your name initials (1-4 letters)")
 
-        code = f"{digits}-{initials}-{section}" if section else f"{digits}-{initials}"
+        # If section is empty, generate a random 2-digit suffix
+        if section:
+            code = f"{digits}-{initials}-{section}"
+        else:
+            # Generate random 2-digit number, ensure uniqueness
+            for _ in range(100):
+                rand_suffix = f"{random.randint(10, 99)}"
+                code = f"{digits}-{initials}-{rand_suffix}"
+                if not db.query(User).filter(User.student_code == code, User.role == "student").first():
+                    break
+            else:
+                raise HTTPException(status_code=500, detail="Could not generate a unique ID. Please try again.")
+            section = rand_suffix
 
         existing = db.query(User).filter(User.student_code == code, User.role == "student").first()
         if existing:
