@@ -4,6 +4,7 @@ import threading
 import bcrypt
 from fastapi import FastAPI, Request
 
+print("[BOOT] Starting AI Speech Coach server...", flush=True)
 logging.basicConfig(level=logging.INFO)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
