@@ -106,7 +106,7 @@ export default function HistoryPage() {
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
                           <Clock className="h-3 w-3" />
                           {session.created_at ? new Date(session.created_at).toLocaleDateString("en-US", {
-                            month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit"
+                            month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Hong_Kong"
                           }) : "N/A"}
                           {session.duration_seconds && (
                             <span>· {Math.round(session.duration_seconds)}s</span>

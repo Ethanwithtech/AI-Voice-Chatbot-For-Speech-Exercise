@@ -135,7 +135,7 @@ export default function ResultPage() {
           <div>
             <h1 className="text-2xl font-bold">{exercise?.title || "Free Practice"}</h1>
             <p className="text-sm text-muted-foreground">
-              {session.created_at ? new Date(session.created_at).toLocaleString() : ""}
+              {session.created_at ? new Date(session.created_at).toLocaleString("en-US", { timeZone: "Asia/Hong_Kong" }) : ""}
             </p>
           </div>
           {practiceResult.is_read_aloud !== null && (

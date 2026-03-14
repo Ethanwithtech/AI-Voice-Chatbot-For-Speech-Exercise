@@ -146,7 +146,7 @@ export default function DashboardPage() {
                         <div className="flex items-center gap-3">
                           <span className="font-mono text-xs">{r.tokens_used?.toLocaleString()} tokens</span>
                           <span className="text-xs text-muted-foreground">
-                            {r.created_at ? new Date(r.created_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : ""}
+                            {r.created_at ? new Date(r.created_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Hong_Kong" }) : ""}
                           </span>
                         </div>
                       </div>

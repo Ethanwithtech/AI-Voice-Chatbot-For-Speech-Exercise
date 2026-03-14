@@ -119,7 +119,7 @@ export default function StudentManagePage() {
                       </div>
                       <p className="text-xs text-muted-foreground">
                         {user.email || user.student_code || "N/A"}
-                        {user.created_at && ` · Joined ${new Date(user.created_at).toLocaleDateString()}`}
+                        {user.created_at && ` · Joined ${new Date(user.created_at).toLocaleDateString("en-US", { timeZone: "Asia/Hong_Kong" })}`}
                       </p>
                     </div>
                   </div>

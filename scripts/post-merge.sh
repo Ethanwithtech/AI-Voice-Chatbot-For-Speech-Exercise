@@ -7,6 +7,10 @@ echo "=== Post-merge setup ==="
 echo "Installing backend dependencies..."
 pip install -q -r /home/runner/workspace/backend/requirements.txt
 
+# Install frontend dependencies
+echo "Installing frontend dependencies..."
+cd /home/runner/workspace/frontend && npm install --legacy-peer-deps
+
 # Run DB migrations (idempotent — safe to run on every merge)
 echo "Running DB migrations..."
 cd /home/runner/workspace/backend
