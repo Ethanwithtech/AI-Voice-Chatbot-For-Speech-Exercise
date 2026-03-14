@@ -1,0 +1,107 @@
+I need you to do TWO things to ensure the Production (published) site has all the data from the Development environment:
+
+---
+
+## Task 1: Migrate existing data from Development DB to Production DB
+
+The Development and Production environments use separate PostgreSQL databases. The exercises, audio files, and teacher accounts I created in Development are not showing up on the published site.
+
+Please create and run a migration script that:
+
+1. **Connects to BOTH databases** — the Development DATABASE_URL and the Production DATABASE_URL. 
+   - In Replit, you can find both connection strings. The development one is the current `DATABASE_URL`. The production one is used by the Autoscale deployment. Check the Replit Secrets/environment for both.
+   - If you can't find separate URLs, you may need to run the seed script directly in the production environment instead.
+
+2. **Migrates these tables** from Dev → Prod:
+   - `users` — especially the admin account (`simonwang@hkbu.edu.hk`) and any registered teachers. Skip student accounts (they can re-register).
+   - `exercises` — ALL exercises including CRAA exercises. **IMPORTANT:** This includes binary audio columns `narration_audio_data`, `narration_audio_type`, `argument_audio_data`, `argument_audio_type`. These BYTEA columns contain uploaded MP3/WebM audio files and must be transferred correctly.
+
+3. **Skip duplicates** — if a record with the same email (for users) or same title (for exercises) already exists in production, skip it.
+
+4. **Do NOT migrate** `practice_sessions`, `practice_results`, or `token_usage` — those are test data.
+
+If direct cross-database migration is not possible, use pg_dump approach:
+```bash
+# Export from dev database (data only, as INSERT statements)
+pg_dump "$DEV_DATABASE_URL" --data-only --inserts --column-inserts -t users -t exercises > /tmp/data_export.sql
+
+# Then import into production database
+psql "$PROD_DATABASE_URL" < /tmp/data_export.sql
+Task 2: Auto-seed exercises on startup when database is empty
+Modify the app startup so that whenever the Production database starts fresh (empty), it automatically seeds the default exercises. The project already has backend/seed_craa.py with 3 CRAA exercises.
+
+Please update backend/app/main.py to call the seed function after _ensure_admin() in the _startup_background() function:
+
+python
+def _startup_background():
+    """Run DB migrations, admin setup, and exercise seeding in background."""
+    logger = logging.getLogger(__name__)
+    try:
+        logger.info("[startup] Running DB init in background...")
+        init_db()
+        logger.info("[startup] DB init complete")
+    except Exception as e:
+        logger.error(f"[startup] DB init failed: {e}")
+
+    try:
+        _ensure_admin()
+    except Exception as e:
+        logger.error(f"[startup] Admin setup failed (non-fatal): {e}")
+
+    # Auto-seed CRAA exercises if none exist
+    try:
+        _seed_exercises()
+    except Exception as e:
+        logger.error(f"[startup] Exercise seeding failed (non-fatal): {e}")
+
+
+def _seed_exercises():
+    """Seed default CRAA exercises if the exercises table is empty."""
+    logger = logging.getLogger(__name__)
+    db = get_db()
+    try:
+        from app.database import Exercise
+        count = db.query(Exercise).count()
+        if count > 0:
+            logger.info(f"[startup] {count} exercises already exist, skipping seed")
+            return
+        
+        # Import and run the seed script
+        import sys, os
+        sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__))))
+        from seed_craa import CRAA_EXERCISES
+        
+        admin = db.query(User).filter(User.role.in_(["admin", "teacher"])).first()
+        if not admin:
+            logger.warning("[startup] No admin/teacher found, cannot seed exercises")
+            return
+        
+        for data in CRAA_EXERCISES:
+            ex = Exercise(
+                teacher_id=admin.id,
+                title=data["title"],
+                description=data["description"],
+                difficulty=data["difficulty"],
+                exercise_type="craa",
+                topic_context=data["topic_context"],
+                key_claim=data["key_claim"],
+                argument_text=data["argument_text"],
+                preparation_time=data["preparation_time"],
+                response_time=data["response_time"],
+                video_url=data.get("video_url"),
+            )
+            db.add(ex)
+        
+        db.commit()
+        logger.info(f"[startup] Seeded {len(CRAA_EXERCISES)} CRAA exercises")
+    finally:
+        db.close()
+This ensures that every time the production environment starts with an empty database, the admin user AND the default CRAA exercises are automatically created.
+
+After completing both tasks:
+Pull latest from GitHub: git pull origin main
+Rebuild frontend: cd frontend && npm install && npm run build && cd ..
+Run the data migration script
+Restart the application
+Publish/deploy to production
+Verify on the published site that exercises appear when logged in
