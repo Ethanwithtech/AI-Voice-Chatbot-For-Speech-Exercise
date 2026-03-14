@@ -1,0 +1,33 @@
+The deployment is still timing out, but this time the Build succeeds and the layers are pushed. The timeout happens during the health check phase — the container starts but doesn't become healthy in time.
+
+The app runs on port 5000 and the health check endpoint is GET /api/health.
+
+Please check and fix the following:
+
+1. **Check the deployment logs (Logs tab)** — after "Created pid1 binary layer", what happens? Is the app starting? Is there a database connection error? Is the Whisper model downloading and blocking startup?
+
+2. **Ensure the app starts and binds to port 5000 immediately.** The current code already runs DB init in a background thread, which is good. But verify that:
+   - The uvicorn server binds to `0.0.0.0:5000` immediately on startup
+   - The health check endpoint `GET /api/health` responds without waiting for DB
+
+3. **The health check may be hitting `/` instead of `/api/health`.** The SPA catch-all route serves `index.html` for all non-API paths, which should return 200. But if frontend/dist doesn't exist or is incomplete, it will fail. Make sure `frontend/dist/index.html` exists in the deployment bundle.
+
+4. **Check if the `.slugignore` is accidentally excluding important files.** The `.slugignore` was just created — make sure it's NOT excluding:
+   - `frontend/dist/` (the built frontend — this MUST be included)
+   - `backend/` source code
+   - `main.py`
+   
+   Only these should be excluded:
+backend/.model_cache/ frontend/node_modules/ .git/ .codebuddy/ attached_assets/ materials/ *.pdf
+
+code
+
+IMPORTANT: Do NOT put `frontend/dist/` in .slugignore! That's the compiled frontend that needs to be served.
+
+5. **If the issue is VM resources**, try changing the deployment type from "Reserved VM (0.5 vCPU / 2 GiB RAM)" to "Autoscale" which has more resources.
+
+6. **Add a log line at the very start of the app** to confirm it's starting:
+```python
+# At the very top of main.py, after imports:
+print("[BOOT] Starting AI Speech Coach server...")
+Please check the Logs tab for the deployment attempt and share what errors appear after the build completes.
