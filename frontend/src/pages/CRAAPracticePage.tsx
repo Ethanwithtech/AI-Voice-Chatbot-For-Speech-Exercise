@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react"
 import { useNavigate, useSearchParams } from "react-router-dom"
-import { ArrowLeft, Brain, Headphones, Clock, Mic, CheckCircle, Loader2, Volume2, PlayCircle } from "lucide-react"
+import { ArrowLeft, Brain, Headphones, Clock, Mic, CheckCircle, Loader2, Volume2, PlayCircle, FileText, Play, Pause } from "lucide-react"
 import { api } from "@/lib/api"
 import { useAudioRecorder } from "@/hooks/useAudioRecorder"
 import { Button } from "@/components/ui/button"
@@ -120,7 +120,46 @@ export default function CRAAPracticePage() {
   const [prepCountdown, setPrepCountdown] = useState(0)
   const [recCountdown, setRecCountdown] = useState(0)
   const [result, setResult] = useState<CRAAResult | null>(null)
+  const [notes, setNotes] = useState("")
   const [error, setError] = useState("")
+
+  // Audio playback for result page
+  const [playbackUrl, setPlaybackUrl] = useState<string | null>(null)
+  const [isPlayingResult, setIsPlayingResult] = useState(false)
+  const playbackAudioRef = useRef<HTMLAudioElement | null>(null)
+
+  const loadPlaybackAudio = useCallback((sessionId: number) => {
+    const token = localStorage.getItem("token")
+    fetch(`/api/practice/session/${sessionId}/audio`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(r => { if (!r.ok) throw new Error(); return r.blob() })
+      .then(blob => {
+        const url = URL.createObjectURL(blob)
+        setPlaybackUrl(url)
+        const audio = new Audio(url)
+        audio.addEventListener("ended", () => setIsPlayingResult(false))
+        playbackAudioRef.current = audio
+      })
+      .catch(() => { })
+  }, [])
+
+  const togglePlayback = useCallback(() => {
+    if (!playbackAudioRef.current) return
+    if (isPlayingResult) {
+      playbackAudioRef.current.pause()
+    } else {
+      playbackAudioRef.current.play()
+    }
+    setIsPlayingResult(!isPlayingResult)
+  }, [isPlayingResult])
+
+  // Cleanup playback audio
+  useEffect(() => {
+    return () => {
+      if (playbackUrl) URL.revokeObjectURL(playbackUrl)
+    }
+  }, [playbackUrl])
 
   // Audio playback state for the listen stage
   const [audioStatus, setAudioStatus] = useState<"idle" | "loading" | "playing-narration" | "playing-argument" | "done">("idle")
@@ -251,6 +290,10 @@ export default function CRAAPracticePage() {
       const data = await api.upload<CRAAResult>("/practice/craa-analyze", formData)
       setResult(data)
       setStage("result")
+      // Load audio for playback in result page
+      if (data.session_id) {
+        loadPlaybackAudio(data.session_id)
+      }
     } catch (err: any) {
       setError(err.message || "Analysis failed")
       setStage("record")
@@ -549,6 +592,17 @@ export default function CRAAPracticePage() {
                   </div>
                 )}
 
+                {/* Note-taking area */}
+                <div className="text-left">
+                  <label className="text-xs font-semibold text-muted-foreground uppercase block mb-2">📝 Your Notes</label>
+                  <textarea
+                    value={notes}
+                    onChange={e => setNotes(e.target.value)}
+                    placeholder={"Take notes here while listening...\n\n• Context: ...\n• Main Claim: ...\n• Evidence 1: ...\n• Evidence 2: ...\n• Explanation: ..."}
+                    className="w-full h-40 p-3 rounded-lg border bg-background text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+
                 <Button
                   size="lg"
                   className="w-full"
@@ -578,6 +632,29 @@ export default function CRAAPracticePage() {
               <div className="text-left p-4 rounded-lg bg-muted/50">
                 <p className="text-xs font-semibold text-muted-foreground uppercase mb-2">Key Claim to Respond To</p>
                 <p className="text-sm font-medium">"{exercise.key_claim}"</p>
+              </div>
+
+              {/* Collapsible argument text */}
+              {exercise.argument_text && (
+                <details className="text-left">
+                  <summary className="text-xs font-semibold text-muted-foreground uppercase cursor-pointer hover:text-foreground transition-colors flex items-center gap-1">
+                    <FileText className="h-3.5 w-3.5" /> View Argument Text
+                  </summary>
+                  <div className="mt-2 p-3 rounded-lg bg-muted/50 border max-h-48 overflow-y-auto">
+                    <p className="text-sm leading-relaxed whitespace-pre-line">{exercise.argument_text}</p>
+                  </div>
+                </details>
+              )}
+
+              {/* Notes from listen stage */}
+              <div className="text-left">
+                <label className="text-xs font-semibold text-muted-foreground uppercase block mb-2">Your Notes</label>
+                <textarea
+                  value={notes}
+                  onChange={e => setNotes(e.target.value)}
+                  placeholder="Review and refine your notes..."
+                  className="w-full h-32 p-3 rounded-lg border bg-background text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary"
+                />
               </div>
               <p className="text-sm text-muted-foreground">Tip: Plan to briefly <strong>summarize</strong> the argument, then provide your <strong>counterargument</strong>.</p>
             </CardContent>
@@ -618,6 +695,41 @@ export default function CRAAPracticePage() {
                 </div>
               ) : null}
               {error && <p className="text-sm text-destructive">{error}</p>}
+
+              {/* Exercise materials for reference */}
+              <details>
+                <summary className="text-xs font-semibold text-muted-foreground uppercase cursor-pointer hover:text-foreground transition-colors flex items-center justify-center gap-1">
+                  <FileText className="h-3.5 w-3.5" /> View Materials
+                </summary>
+                <div className="mt-2 space-y-2 max-h-48 overflow-y-auto text-left">
+                  {exercise.key_claim && (
+                    <div className="p-2 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
+                      <p className="text-xs font-semibold text-amber-600 mb-0.5">Key Claim</p>
+                      <p className="text-xs">{exercise.key_claim}</p>
+                    </div>
+                  )}
+                  {exercise.argument_text && (
+                    <div className="p-2 rounded-lg bg-muted/50 border">
+                      <p className="text-xs font-semibold text-muted-foreground mb-0.5">Argument</p>
+                      <p className="text-xs whitespace-pre-line leading-relaxed">{exercise.argument_text}</p>
+                    </div>
+                  )}
+                  {exercise.topic_context && (
+                    <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
+                      <p className="text-xs font-semibold text-blue-600 mb-0.5">Topic Context</p>
+                      <p className="text-xs">{exercise.topic_context}</p>
+                    </div>
+                  )}
+                </div>
+              </details>
+
+              {/* Show notes for reference */}
+              {notes && (
+                <div className="p-3 rounded-lg bg-muted/50 border max-h-24 overflow-y-auto text-left">
+                  <p className="text-xs font-semibold text-muted-foreground mb-1">Your Notes</p>
+                  <p className="text-xs whitespace-pre-line">{notes}</p>
+                </div>
+              )}
             </CardContent>
           </Card>
         )}
@@ -748,6 +860,29 @@ export default function CRAAPracticePage() {
               </Card>
             )}
 
+            {/* Play Your Recording */}
+            {playbackAudioRef.current && (
+              <Card>
+                <CardContent className="py-4 px-5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                        <Volume2 className="h-5 w-5 text-primary" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold">Your Recording</p>
+                        <p className="text-xs text-muted-foreground">Listen to your response</p>
+                      </div>
+                    </div>
+                    <Button variant="outline" size="sm" onClick={togglePlayback} className="gap-2">
+                      {isPlayingResult ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                      {isPlayingResult ? "Pause" : "Play"}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {result.transcript && (
               <Card>
                 <CardContent className="p-5">
@@ -763,6 +898,15 @@ export default function CRAAPracticePage() {
                 setRecCountdown(exercise.response_time ?? 120)
                 setResult(null)
                 setError("")
+                setNotes("")
+                setIsPlayingResult(false)
+                if (playbackAudioRef.current) {
+                  playbackAudioRef.current.pause()
+                  playbackAudioRef.current = null
+                }
+                if (playbackUrl) URL.revokeObjectURL(playbackUrl)
+                setPlaybackUrl(null)
+                setAudioStatus("idle")
                 recorder.reset()
                 setStage("intro")
               }}>Try Again</Button>

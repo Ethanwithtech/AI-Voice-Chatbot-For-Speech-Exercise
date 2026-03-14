@@ -44,6 +44,8 @@ class User(Base):
     password_hash = Column(String(255), nullable=True)
     role = Column(String(20), nullable=False, default="student")
     student_code = Column(String(20), unique=True, nullable=True)
+    section = Column(String(20), nullable=True)
+    is_approved = Column(Boolean, nullable=True, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     exercises = relationship("Exercise", back_populates="teacher", cascade="all, delete-orphan")
@@ -191,6 +193,14 @@ def _run_migrations(logger):
             migrations.append("ALTER TABLE exercises ADD COLUMN response_time INTEGER DEFAULT 120")
         if "video_url" not in ex_cols:
             migrations.append("ALTER TABLE exercises ADD COLUMN video_url VARCHAR(500)")
+
+    # users migrations — section & is_approved for registration
+    if "users" in existing_tables:
+        u_cols = {col["name"] for col in inspector.get_columns("users")}
+        if "section" not in u_cols:
+            migrations.append("ALTER TABLE users ADD COLUMN section VARCHAR(20)")
+        if "is_approved" not in u_cols:
+            migrations.append("ALTER TABLE users ADD COLUMN is_approved BOOLEAN DEFAULT TRUE")
 
     if not migrations:
         logger.info("[migration] All schemas are up to date")
