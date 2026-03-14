@@ -7,6 +7,7 @@ export interface User {
   email?: string | null
   role: "student" | "teacher" | "admin"
   student_code?: string | null
+  section?: string | null
   created_at?: string | null
 }
 
@@ -17,12 +18,13 @@ interface AuthContextType {
   token: string | null
   isLoading: boolean
   loginStudent: (studentCode: string) => Promise<void>
+  registerStudent: (lastFourDigits: string, initials: string, section?: string) => Promise<{ code: string }>
   loginTeacher: (email: string, password: string) => Promise<void>
+  requestTeacherAccess: (name: string, email: string, password: string, reason?: string) => Promise<void>
   logout: () => void
   isTeacher: boolean
   isAdmin: boolean
   isStudent: boolean
-  // View mode switching
   viewMode: ViewMode
   setViewMode: (mode: ViewMode) => void
   canSwitchView: boolean
@@ -65,6 +67,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setViewMode("default")
   }
 
+  const registerStudent = async (lastFourDigits: string, initials: string, section?: string) => {
+    const res = await api.post<{ token: string; user: User }>("/auth/student-register", {
+      last_four_digits: lastFourDigits,
+      initials: initials,
+      section: section || undefined,
+    })
+    localStorage.setItem("token", res.token)
+    setToken(res.token)
+    setUser(res.user)
+    setViewMode("default")
+    return { code: res.user.student_code || "" }
+  }
+
   const loginTeacher = async (email: string, password: string) => {
     const res = await api.post<{ token: string; user: User }>("/auth/teacher-login", {
       email,
@@ -76,10 +91,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setViewMode("default")
   }
 
+  const requestTeacherAccess = async (name: string, email: string, password: string, reason?: string) => {
+    await api.post("/auth/teacher-request-access", {
+      name, email, password,
+      reason: reason || undefined,
+    })
+  }
+
   const actualRole = user?.role ?? null
   const canSwitchView = actualRole === "teacher" || actualRole === "admin"
-
-  // When viewMode is "student", pretend to be a student for UI purposes
   const isStudentView = viewMode === "student" && canSwitchView
   const isTeacher = !isStudentView && (user?.role === "teacher" || user?.role === "admin")
   const isAdmin = !isStudentView && user?.role === "admin"
@@ -88,7 +108,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   return (
     <AuthContext.Provider value={{
       user, token, isLoading,
-      loginStudent, loginTeacher, logout,
+      loginStudent, registerStudent, loginTeacher, requestTeacherAccess, logout,
       isTeacher, isAdmin, isStudent,
       viewMode, setViewMode, canSwitchView, actualRole,
     }}>
