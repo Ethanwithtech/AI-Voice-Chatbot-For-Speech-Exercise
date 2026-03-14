@@ -12,4 +12,10 @@ echo "Running DB migrations..."
 cd /home/runner/workspace/backend
 python -c "from app.database import init_db; init_db(); print('Migrations complete')"
 
+# Build frontend
+echo "Building frontend..."
+cd /home/runner/workspace/frontend
+npm install --no-fund --no-audit < /dev/null
+npx vite build
+
 echo "=== Post-merge setup complete ==="
