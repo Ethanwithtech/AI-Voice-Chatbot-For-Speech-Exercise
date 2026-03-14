@@ -1,0 +1,10 @@
+backend/.model_cache/
+frontend/node_modules/
+.git/
+.codebuddy/
+attached_assets/
+materials/
+*.pdf
+*.mp3
+*.m4a
+*.mp4

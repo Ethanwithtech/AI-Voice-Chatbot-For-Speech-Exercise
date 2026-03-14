@@ -64,7 +64,7 @@ def _get_model():
     if _model_cache is None:
         from faster_whisper import WhisperModel
         model_size = os.getenv("WHISPER_MODEL_SIZE", "base")
-        cache_dir = os.getenv("WHISPER_CACHE_DIR", "/home/runner/workspace/backend/.model_cache")
+        cache_dir = os.getenv("WHISPER_CACHE_DIR", "/tmp/whisper_cache")
         logger.info(f"Loading faster-whisper model: {model_size} (cache: {cache_dir})")
         _model_cache = WhisperModel(model_size, device="cpu", compute_type="int8", download_root=cache_dir)
         logger.info(f"faster-whisper model '{model_size}' loaded successfully")
