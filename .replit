@@ -45,3 +45,7 @@ build = ["bash", "/home/runner/workspace/build.sh"]
 POE_BOT_NAME = "GPT-4o-Mini"
 WHISPER_MODEL_SIZE = "base"
 STT_ENGINE = "auto"
+
+[postMerge]
+path = "scripts/post-merge.sh"
+timeoutMs = 120000
