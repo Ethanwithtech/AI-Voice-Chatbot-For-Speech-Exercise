@@ -37,8 +37,8 @@ waitForPort = 5000
 
 [deployment]
 deploymentTarget = "vm"
-run = ["bash", "/home/runner/workspace/backend/start_prod.sh"]
-build = ["bash", "/home/runner/workspace/build.sh"]
+run = ["bash", "backend/start_prod.sh"]
+build = ["bash", "build.sh"]
 
 [userenv]
 
