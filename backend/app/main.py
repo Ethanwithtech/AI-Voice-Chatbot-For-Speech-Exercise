@@ -3,12 +3,13 @@ import logging
 import threading
 import bcrypt
 from fastapi import FastAPI, Request
-
-print("[BOOT] Starting AI Speech Coach server...", flush=True)
-logging.basicConfig(level=logging.INFO)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, Response
+
+print("[BOOT] Starting AI Speech Coach server...", flush=True)
+logging.basicConfig(level=logging.INFO)
+
 from app.config import settings
 from app.database import init_db, get_db, User, Exercise
 from app.routers import auth_router, exercise_router, practice_router, user_router
@@ -20,6 +21,7 @@ app = FastAPI(
     description="AI-powered speech practice and assessment platform",
     version="1.0.0",
 )
+print("[BOOT] FastAPI app created, binding to port 5000...", flush=True)
 
 app.add_middleware(
     CORSMiddleware,
