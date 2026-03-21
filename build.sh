@@ -43,9 +43,7 @@ rm -rf ~/.cache/pip 2>/dev/null || true
 find /home/runner -type d -name "tests" -path "*/site-packages/*" -exec rm -rf {} + 2>/dev/null || true
 find /home/runner -type d -name "test" -path "*/site-packages/*" -exec rm -rf {} + 2>/dev/null || true
 
-# Remove .dist-info directories (not needed at runtime for most packages)
-# Keep critical ones, remove large ones
-find /home/runner -type d -name "*.dist-info" -path "*/site-packages/*" -exec rm -rf {} + 2>/dev/null || true
+# Note: do NOT remove .dist-info — some packages need it for entry_points and imports
 
 # Remove frontend source files (only dist/ is needed for serving)
 rm -rf "$WORKSPACE/frontend/src" 2>/dev/null || true
