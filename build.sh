@@ -19,8 +19,13 @@ fi
 echo "=== Installing backend dependencies ==="
 cd "$WORKSPACE/backend"
 
-# Install production dependencies only
-pip install -q --no-cache-dir -r requirements-prod.txt
+# Install lightweight deploy dependencies (no faster-whisper/parselmouth → saves ~550MB)
+# Uses ElevenLabs API for STT + word-timestamp fallback for prosody
+if [ -f requirements-deploy.txt ]; then
+  pip install -q --no-cache-dir -r requirements-deploy.txt
+else
+  pip install -q --no-cache-dir -r requirements-prod.txt
+fi
 
 # ── Aggressive cleanup to reduce Bundle size ──
 echo "=== Cleaning up to reduce bundle size ==="

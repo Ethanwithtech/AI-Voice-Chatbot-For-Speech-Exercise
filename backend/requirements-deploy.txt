@@ -1,0 +1,20 @@
+# Lightweight deployment dependencies for Replit
+# Excludes faster-whisper (~500MB+ with ctranslate2) and praat-parselmouth (~50MB)
+# STT: uses ElevenLabs API (cloud) instead of local Whisper
+# Prosody: uses word-timestamp fallback instead of Praat
+#
+# For local development with full features, use requirements-prod.txt instead.
+
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+fastapi_poe==0.0.48
+httpx==0.27.2
+sqlalchemy==2.0.35
+psycopg2-binary==2.9.9
+python-jose[cryptography]==3.4.0
+bcrypt==4.2.0
+python-multipart==0.0.22
+python-dotenv==1.0.1
+pydub==0.25.1
+numpy==1.26.4
+aiofiles==24.1.0
