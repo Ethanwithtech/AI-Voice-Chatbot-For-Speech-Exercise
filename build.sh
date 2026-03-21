@@ -59,9 +59,8 @@ rm -rf "$WORKSPACE/materials" 2>/dev/null || true
 rm -rf "$WORKSPACE/.git" 2>/dev/null || true
 rm -f "$WORKSPACE"/*.pdf "$WORKSPACE"/*.pptx "$WORKSPACE"/*.docx 2>/dev/null || true
 
-# Remove Replit-specific caches
+# Remove Replit-specific caches (NOT .pythonlibs — that's where Python itself lives)
 rm -rf "$WORKSPACE/.upm" 2>/dev/null || true
 rm -rf "$WORKSPACE/.cache" 2>/dev/null || true
-rm -rf "$WORKSPACE/.pythonlibs" 2>/dev/null || true
 
 echo "=== Build complete ==="
