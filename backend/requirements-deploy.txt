@@ -1,9 +1,13 @@
-# Lightweight deployment dependencies for Replit
-# Excludes faster-whisper (~500MB+ with ctranslate2) and praat-parselmouth (~50MB)
-# STT: uses ElevenLabs API (cloud) instead of local Whisper
-# Prosody: uses word-timestamp fallback instead of Praat
+# Lightweight deployment dependencies for Replit Bundle phase.
 #
-# For local development with full features, use requirements-prod.txt instead.
+# faster-whisper (~500MB+ with ctranslate2) and praat-parselmouth (~50MB)
+# are NOT included here to keep the Bundle small (< 10 min limit).
+#
+# They are installed LAZILY at runtime on first user request:
+#   - faster-whisper: auto-installed when first audio is submitted (~2-3 min one-time)
+#   - praat-parselmouth: optional, falls back gracefully if missing
+#
+# For local development with everything pre-installed, use requirements-prod.txt.
 
 fastapi==0.115.0
 uvicorn[standard]==0.30.6

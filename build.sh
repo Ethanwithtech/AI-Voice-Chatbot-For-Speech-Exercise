@@ -19,8 +19,10 @@ fi
 echo "=== Installing backend dependencies ==="
 cd "$WORKSPACE/backend"
 
-# Install lightweight deploy dependencies (no faster-whisper/parselmouth → saves ~550MB)
-# Uses ElevenLabs API for STT + word-timestamp fallback for prosody
+# Install lightweight deploy dependencies only (keeps Bundle under 10-min limit).
+# faster-whisper (~500MB) is NOT installed here — it will be lazily installed
+# at runtime on the first audio submission (~2-3 min one-time cost).
+# See backend/app/services/whisper_local_service.py for the lazy-install logic.
 if [ -f requirements-deploy.txt ]; then
   pip install -q --no-cache-dir -r requirements-deploy.txt
 else
