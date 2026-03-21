@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom"
-import { Mic, BarChart3, Clock, BookOpen, Users, Settings, Shield } from "lucide-react"
+import { Mic, BarChart3, Clock, BookOpen, Users, Settings, Shield, FileCheck } from "lucide-react"
 import { useAuth } from "@/lib/auth"
 import { Card, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 
@@ -100,11 +100,25 @@ export default function DashboardPage() {
               />
             )}
             <FeatureCard
+              icon={Shield}
+              title="Try Mock Test"
+              description="Experience the CRAA mock test as a student would — preview exam conditions and scoring"
+              gradient="bg-gradient-to-br from-red-600 to-red-500"
+              onClick={() => navigate("/mock-test")}
+            />
+            <FeatureCard
               icon={Mic}
               title="Try Practice"
               description="Test exercises yourself to see what students will experience"
               gradient="bg-gradient-to-br from-emerald-600 to-emerald-500"
               onClick={() => navigate("/practice")}
+            />
+            <FeatureCard
+              icon={FileCheck}
+              title="Practice History"
+              description="Review all practice sessions and scores across students"
+              gradient="bg-gradient-to-br from-amber-600 to-amber-500"
+              onClick={() => navigate("/history")}
             />
           </div>
         )}

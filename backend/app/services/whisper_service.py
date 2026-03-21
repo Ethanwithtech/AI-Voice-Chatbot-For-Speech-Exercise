@@ -1,3 +1,18 @@
+"""
+STT engine dispatcher.
+
+Supports two engines:
+  - whisper_local: Local faster-whisper (CTranslate2). Provides word-level
+    confidence scores essential for pronunciation assessment. Installed at
+    runtime on first use if not present (to keep deployment bundle small).
+  - elevenlabs: Cloud-based ElevenLabs Scribe v2 API.
+
+Engine selection (STT_ENGINE env var):
+  - "auto" (default): Use ElevenLabs if API key is set, otherwise whisper_local.
+  - "whisper_local": Force local Whisper (will runtime-install if needed).
+  - "elevenlabs": Force ElevenLabs (requires API key).
+"""
+
 import logging
 import httpx
 from app.config import settings
@@ -13,8 +28,17 @@ def _get_stt_engine() -> str:
         if settings.ELEVENLABS_API_KEY:
             return "elevenlabs"
         else:
-            logger.info("ELEVENLABS_API_KEY not set, using local Whisper")
+            # No cloud API key — use local Whisper
+            # (will be runtime-installed on first use if not present)
+            logger.info("STT_ENGINE=auto, no ELEVENLABS_API_KEY — using whisper_local")
             return "whisper_local"
+
+    if engine == "elevenlabs" and not settings.ELEVENLABS_API_KEY:
+        logger.warning(
+            "STT_ENGINE=elevenlabs but ELEVENLABS_API_KEY not set. "
+            "Falling back to whisper_local."
+        )
+        return "whisper_local"
 
     return engine
 
@@ -95,6 +119,10 @@ async def _transcribe_elevenlabs(audio_path: str) -> dict:
 
 
 def _transcribe_whisper_local(audio_path: str) -> dict:
-    """Transcribe audio using local OpenAI Whisper model."""
+    """Transcribe audio using local faster-whisper model.
+
+    If faster-whisper is not installed, it will be automatically
+    installed at runtime on first call (~2-3 min one-time cost).
+    """
     from app.services.whisper_local_service import transcribe_audio_local
     return transcribe_audio_local(audio_path)

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
-import { ArrowLeft, Plus, Pencil, Trash2, Upload, Loader2, Volume2, Brain } from "lucide-react"
+import { ArrowLeft, Plus, Pencil, Trash2, Upload, Loader2, Volume2, Brain, Eye, Shield } from "lucide-react"
 import { api } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -216,7 +216,37 @@ export default function ExerciseManagePage() {
                     </div>
                     <p className="text-sm text-muted-foreground line-clamp-1">{ex.description}</p>
                   </div>
-                  <div className="flex items-center gap-2 ml-4">
+                  <div className="flex items-center gap-1 ml-4">
+                    {ex.exercise_type === "craa" && (
+                      <>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          title="Preview as Practice"
+                          onClick={() => navigate(`/craa-practice?exerciseId=${ex.id}`)}
+                        >
+                          <Eye className="h-4 w-4 text-blue-500" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          title="Preview as Mock Test"
+                          onClick={() => navigate(`/mock-test?exerciseId=${ex.id}`)}
+                        >
+                          <Shield className="h-4 w-4 text-red-500" />
+                        </Button>
+                      </>
+                    )}
+                    {ex.exercise_type !== "craa" && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        title="Preview Exercise"
+                        onClick={() => navigate(`/practice?exerciseId=${ex.id}`)}
+                      >
+                        <Eye className="h-4 w-4 text-blue-500" />
+                      </Button>
+                    )}
                     <Button variant="ghost" size="icon" onClick={() => openEditDialog(ex)}>
                       <Pencil className="h-4 w-4" />
                     </Button>

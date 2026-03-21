@@ -1,0 +1,24 @@
+# Lightweight deployment dependencies for Replit Bundle phase.
+#
+# faster-whisper (~500MB+ with ctranslate2) and praat-parselmouth (~50MB)
+# are NOT included here to keep the Bundle small (< 10 min limit).
+#
+# They are installed LAZILY at runtime on first user request:
+#   - faster-whisper: auto-installed when first audio is submitted (~2-3 min one-time)
+#   - praat-parselmouth: optional, falls back gracefully if missing
+#
+# For local development with everything pre-installed, use requirements-prod.txt.
+
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+fastapi_poe==0.0.48
+httpx==0.27.2
+sqlalchemy==2.0.35
+psycopg2-binary==2.9.9
+python-jose[cryptography]==3.4.0
+bcrypt==4.2.0
+python-multipart==0.0.22
+python-dotenv==1.0.1
+pydub==0.25.1
+numpy==1.26.4
+aiofiles==24.1.0

@@ -1,5 +1,6 @@
 backend/.model_cache/
 frontend/node_modules/
+frontend/src/
 .git/
 .codebuddy/
 attached_assets/
@@ -8,3 +9,17 @@ materials/
 *.mp3
 *.m4a
 *.mp4
+*.pptx
+*.docx
+*.xlsx
+*.zip
+*.tar.gz
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+*.egg-info/
+.venv/
+.cache/
+.upm/
+.pythonlibs/
