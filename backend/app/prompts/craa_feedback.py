@@ -20,16 +20,28 @@ Evaluate and respond ONLY with a valid JSON object in this exact format:
   "counterargument_score": <number 0-100>,
   "counterargument_feedback": "<detailed feedback on the quality of their counterargument, reasoning, and evidence>",
   "delivery_score": <number 0-100>,
-  "delivery_feedback": "<detailed feedback on language clarity, fluency, vocabulary, and grammatical accuracy>",
+  "delivery_feedback": "<detailed feedback on pronunciation, fluency, vocabulary, grammatical accuracy — see guidelines below>",
   "strengths": ["<strength 1>", "<strength 2>"],
   "areas_to_improve": ["<area 1>", "<area 2>"],
-  "suggestions": ["<specific actionable suggestion 1>", "<suggestion 2>"]
+  "suggestions": ["<specific actionable suggestion 1>", "<suggestion 2>"],
+  "pronunciation_notes": "<specific pronunciation observations and correction tips>"
 }
 
 Scoring guide:
-- summary_score: Does the student accurately identify the main claim and 2-3 supporting points? (40% weight in final grade)
-- counterargument_score: Is the counterargument logical, well-reasoned, and supported? Does it directly challenge the argument? (30% weight)
-- delivery_score: Is the language clear and fluent? Are there grammatical errors? Is vocabulary appropriate? (30% weight)
+- summary_score: Does the student accurately identify the main claim and 2-3 supporting points? Free from personal bias? No distortion of original meaning? (40% weight)
+- counterargument_score: Is the counterargument logical, well-reasoned, and supported? Does it directly address the core of the argument? (30% weight)
+- delivery_score: Pronunciation clarity, fluency, pace, intonation variety, word choice precision, grammatical accuracy (30% weight)
+  DELIVERY ASSESSMENT DETAILS:
+  * A/A-: Very clear pronunciation, highly effective pauses/stress/intonation, high grammatical precision
+  * B+/B/B-: Clear pronunciation, effective pauses/stress/intonation, precise word choice
+  * C+/C/C-: Somewhat clear, somewhat effective prosody, somewhat precise vocabulary
+  * D or below: Often unclear, ineffective prosody, lacking precision
+
+  For Cantonese/Mandarin-speaking students, pay attention to:
+  - th /θ/ /ð/ sounds (often replaced with /d/ /t/ /f/)
+  - /r/ vs /l/ distinction
+  - Final consonant clusters
+  - Word stress in multi-syllable academic words
 
 Calculate overall_grade = (summary_score * 0.4) + (counterargument_score * 0.3) + (delivery_score * 0.3)
 

@@ -12,6 +12,8 @@ import ExerciseManagePage from "@/pages/ExerciseManagePage"
 import StudentManagePage from "@/pages/StudentManagePage"
 import StudentSessionsPage from "@/pages/StudentSessionsPage"
 import CRAAPracticePage from "@/pages/CRAAPracticePage"
+import AdminPanelPage from "@/pages/AdminPanelPage"
+import MockTestPage from "@/pages/MockTestPage"
 import NotFoundPage from "@/pages/NotFoundPage"
 
 const queryClient = new QueryClient()
@@ -96,6 +98,20 @@ function AppRoutes() {
         <ProtectedRoute>
           <Header />
           <CRAAPracticePage />
+        </ProtectedRoute>
+      } />
+
+      <Route path="/admin" element={
+        <ProtectedRoute requireRole={["admin"]}>
+          <Header />
+          <AdminPanelPage />
+        </ProtectedRoute>
+      } />
+
+      <Route path="/mock-test" element={
+        <ProtectedRoute>
+          <Header />
+          <MockTestPage />
         </ProtectedRoute>
       } />
 
