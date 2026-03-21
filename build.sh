@@ -1,29 +1,60 @@
 #!/bin/bash
 set -e
 
+WORKSPACE="/home/runner/workspace"
+
+# ── Frontend ──
 # Use pre-built frontend dist/ committed to git — skips npm install entirely.
-if [ -d "/home/runner/workspace/frontend/dist" ]; then
+if [ -d "$WORKSPACE/frontend/dist" ]; then
   echo "=== Using pre-built frontend dist/ (skipping npm) ==="
 else
   echo "=== Building frontend (dist/ not found, running npm) ==="
-  cd /home/runner/workspace/frontend
+  cd "$WORKSPACE/frontend"
   npm install --silent
   npm run build
-  rm -rf /home/runner/workspace/frontend/node_modules
+  # Remove node_modules immediately to keep bundle small
+  rm -rf "$WORKSPACE/frontend/node_modules"
 fi
 
 echo "=== Installing backend dependencies ==="
-cd /home/runner/workspace/backend
+cd "$WORKSPACE/backend"
 
-# No --no-cache-dir so Replit can cache wheels between deployments.
-# scipy removed (unused). faster-whisper replaces torch+openai-whisper.
-pip install -q -r requirements-prod.txt
+# Install production dependencies only
+pip install -q --no-cache-dir -r requirements-prod.txt
 
-# Clean pycache before bundling
-find /home/runner/workspace/backend -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+# ── Aggressive cleanup to reduce Bundle size ──
+echo "=== Cleaning up to reduce bundle size ==="
 
-# NOTE: Whisper model is NOT pre-downloaded here. It downloads lazily on first
-# use at runtime into WHISPER_CACHE_DIR (/tmp/whisper_cache by default).
-# Pre-downloading added ~150 MB to the bundle and caused deployment timeouts.
+# Remove __pycache__ directories
+find "$WORKSPACE" -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+find "$WORKSPACE" -name "*.pyc" -delete 2>/dev/null || true
+
+# Remove pip cache
+rm -rf ~/.cache/pip 2>/dev/null || true
+
+# Remove unnecessary test directories from installed packages
+find /home/runner -type d -name "tests" -path "*/site-packages/*" -exec rm -rf {} + 2>/dev/null || true
+find /home/runner -type d -name "test" -path "*/site-packages/*" -exec rm -rf {} + 2>/dev/null || true
+
+# Remove .dist-info directories (not needed at runtime for most packages)
+# Keep critical ones, remove large ones
+find /home/runner -type d -name "*.dist-info" -path "*/site-packages/*" -exec rm -rf {} + 2>/dev/null || true
+
+# Remove frontend source files (only dist/ is needed for serving)
+rm -rf "$WORKSPACE/frontend/src" 2>/dev/null || true
+rm -rf "$WORKSPACE/frontend/public" 2>/dev/null || true
+rm -rf "$WORKSPACE/frontend/node_modules" 2>/dev/null || true
+
+# Remove non-essential workspace files
+rm -rf "$WORKSPACE/.codebuddy" 2>/dev/null || true
+rm -rf "$WORKSPACE/attached_assets" 2>/dev/null || true
+rm -rf "$WORKSPACE/materials" 2>/dev/null || true
+rm -rf "$WORKSPACE/.git" 2>/dev/null || true
+rm -f "$WORKSPACE"/*.pdf "$WORKSPACE"/*.pptx "$WORKSPACE"/*.docx 2>/dev/null || true
+
+# Remove Replit-specific caches
+rm -rf "$WORKSPACE/.upm" 2>/dev/null || true
+rm -rf "$WORKSPACE/.cache" 2>/dev/null || true
+rm -rf "$WORKSPACE/.pythonlibs" 2>/dev/null || true
 
 echo "=== Build complete ==="
