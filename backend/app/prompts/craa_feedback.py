@@ -55,6 +55,7 @@ def build_craa_prompt(
     topic_context: str = None,
     key_claim: str = None,
     prosody_data: dict = None,
+    pronunciation_issues: list = None,
 ) -> str:
     parts = []
 
@@ -73,7 +74,20 @@ def build_craa_prompt(
         parts.append(f"- Speech Rate: {prosody_data.get('speech_rate', 'N/A')} words/min\n")
         parts.append(f"- Number of Pauses: {prosody_data.get('pause_count', 'N/A')}\n")
         parts.append(f"- Average Pause Duration: {prosody_data.get('mean_pause_duration', 'N/A')}s\n")
+        parts.append(f"- Long Pauses (>0.5s): {prosody_data.get('long_pause_count', 'N/A')}\n")
+        parts.append(f"- Intonation Index: {prosody_data.get('intonation_index', 'N/A')}\n")
         parts.append(f"- Total Response Duration: {prosody_data.get('total_duration', 'N/A')}s\n")
+
+    if pronunciation_issues:
+        parts.append("\n## Detected Pronunciation Issues (Audio-Level)\n")
+        parts.append("These words had low ASR confidence or matched known mispronunciation patterns:\n")
+        for issue in pronunciation_issues:
+            word = issue.get("word", "") if isinstance(issue, dict) else issue.word
+            expected = issue.get("expected", "") if isinstance(issue, dict) else issue.expected
+            if expected:
+                parts.append(f"- '{word}' → {expected}\n")
+            else:
+                parts.append(f"- '{word}' (unclear)\n")
 
     parts.append("\nPlease evaluate the student's CRAA response and provide structured JSON feedback.")
     return "".join(parts)

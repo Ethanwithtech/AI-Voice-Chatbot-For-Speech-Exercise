@@ -106,6 +106,7 @@ async def generate_craa_feedback(
     topic_context: str = None,
     key_claim: str = None,
     prosody_data: dict = None,
+    pronunciation_issues: list = None,
 ) -> dict:
     user_prompt = build_craa_prompt(
         transcript=transcript,
@@ -113,6 +114,7 @@ async def generate_craa_feedback(
         topic_context=topic_context,
         key_claim=key_claim,
         prosody_data=prosody_data,
+        pronunciation_issues=pronunciation_issues,
     )
 
     messages = [
