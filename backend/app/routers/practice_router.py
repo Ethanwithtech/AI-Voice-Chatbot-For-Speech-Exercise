@@ -9,7 +9,7 @@ from app.auth import get_current_user
 from app.services.audio_service import save_upload, convert_to_wav, get_audio_duration, cleanup_files
 from app.services.whisper_service import transcribe_audio
 from app.services.prosody_service import analyze_prosody, evaluate_fluency
-from app.services.pronunciation_service import detect_pronunciation_issues, calculate_pronunciation_score
+from app.services.pronunciation_service import detect_pronunciation_issues, calculate_pronunciation_score, analyze_pronunciation_audio
 from app.services.readaloud_service import detect_read_aloud
 from app.services.llm_service import generate_feedback, generate_craa_feedback, get_last_token_usage
 
@@ -59,6 +59,7 @@ async def analyze_speech(
         logger.info(f"[analyze] Audio saved and converted to WAV")
 
         word_timestamps = []
+        word_confidences = []
         transcription_source = "client"
         if transcript and transcript.strip():
             logger.info(f"[analyze] Using client-provided transcript ({len(transcript)} chars), skipping Whisper")
@@ -67,7 +68,8 @@ async def analyze_speech(
             whisper_result = await transcribe_audio(wav_path)
             transcript = whisper_result["transcript"]
             word_timestamps = whisper_result["word_timestamps"]
-            logger.info(f"[analyze] Transcription: {len(transcript)} chars, {len(word_timestamps)} words")
+            word_confidences = whisper_result.get("word_confidences", [])
+            logger.info(f"[analyze] Transcription: {len(transcript)} chars, {len(word_timestamps)} words, {len(word_confidences)} confidence scores")
 
         if not transcript.strip():
             cleanup_files(upload_path, wav_path)
@@ -75,10 +77,13 @@ async def analyze_speech(
 
         prosody = analyze_prosody(wav_path, word_timestamps)
         fluency_eval = evaluate_fluency(prosody)
-        logger.info(f"[analyze] Prosody analyzed: speech_rate={prosody.speech_rate}")
+        logger.info(f"[analyze] Prosody analyzed: speech_rate={prosody.speech_rate}, fluency_level={fluency_eval.get('fluency_level', 'N/A')}")
 
-        pronunciation_issues = detect_pronunciation_issues(transcript, word_timestamps, reference_text)
-        pronunciation_score = calculate_pronunciation_score(transcript, reference_text, pronunciation_issues)
+        pronunciation_issues = detect_pronunciation_issues(transcript, word_timestamps, reference_text, word_confidences)
+        pronunciation_score = calculate_pronunciation_score(transcript, reference_text, pronunciation_issues, word_confidences)
+
+        # Audio-level pronunciation analysis (Praat-based)
+        audio_pron_data = analyze_pronunciation_audio(wav_path, word_timestamps, transcript)
 
         is_read_aloud = detect_read_aloud(transcript, reference_text, prosody)
 
@@ -121,6 +126,10 @@ async def analyze_speech(
                 "pronunciation": pronunciation_score,
                 "prosody": prosody_score,
             },
+            "fluency_level": fluency_eval.get("fluency_level", ""),
+            "fluency_details": fluency_eval.get("details", {}),
+            "fluency_feedback": fluency_eval.get("feedback", []),
+            "audio_pronunciation": audio_pron_data if audio_pron_data.get("available") else None,
             "errors": llm_feedback.get("grammar_errors", []),
             "suggestions": llm_feedback.get("suggestions", []),
             "strengths": llm_feedback.get("strengths", []),
@@ -378,6 +387,7 @@ async def analyze_craa_response(
         logger.info("[craa-analyze] Audio saved and converted to WAV")
 
         word_timestamps = []
+        word_confidences = []
         transcription_source = "client"
         if transcript and transcript.strip():
             logger.info(f"[craa-analyze] Using client-provided transcript ({len(transcript)} chars), skipping Whisper")
@@ -386,6 +396,7 @@ async def analyze_craa_response(
             whisper_result = await transcribe_audio(wav_path)
             transcript = whisper_result["transcript"]
             word_timestamps = whisper_result["word_timestamps"]
+            word_confidences = whisper_result.get("word_confidences", [])
             logger.info(f"[craa-analyze] Transcription: {len(transcript)} chars")
 
         if not transcript.strip():
@@ -393,7 +404,14 @@ async def analyze_craa_response(
             raise HTTPException(status_code=400, detail="No speech detected in the audio")
 
         prosody = analyze_prosody(wav_path, word_timestamps)
+        fluency_eval = evaluate_fluency(prosody)
         prosody_data = prosody.dict()
+
+        # Pronunciation analysis for CRAA delivery score enhancement
+        pronunciation_issues = detect_pronunciation_issues(transcript, word_timestamps, None, word_confidences)
+        pronunciation_score = calculate_pronunciation_score(transcript, None, pronunciation_issues, word_confidences)
+        audio_pron_data = analyze_pronunciation_audio(wav_path, word_timestamps, transcript)
+        pron_issues_data = [i.dict() for i in pronunciation_issues]
 
         logger.info("[craa-analyze] Generating CRAA LLM feedback...")
         craa_feedback = await generate_craa_feedback(
@@ -402,6 +420,7 @@ async def analyze_craa_response(
             topic_context=ex.topic_context,
             key_claim=ex.key_claim,
             prosody_data=prosody_data,
+            pronunciation_issues=pron_issues_data,
         )
 
         overall_grade = craa_feedback.get("overall_grade", 60)
@@ -473,10 +492,16 @@ async def analyze_craa_response(
             "summary_feedback": craa_feedback.get("summary_feedback", ""),
             "counterargument_feedback": craa_feedback.get("counterargument_feedback", ""),
             "delivery_feedback": craa_feedback.get("delivery_feedback", ""),
+            "pronunciation_notes": craa_feedback.get("pronunciation_notes", ""),
+            "pronunciation_issues": pron_issues_data,
+            "pronunciation_score": pronunciation_score,
             "strengths": craa_feedback.get("strengths", []),
             "areas_to_improve": craa_feedback.get("areas_to_improve", []),
             "suggestions": craa_feedback.get("suggestions", []),
             "prosody": prosody_data,
+            "fluency_level": fluency_eval.get("fluency_level", ""),
+            "fluency_feedback": fluency_eval.get("feedback", []),
+            "audio_pronunciation": audio_pron_data if audio_pron_data.get("available") else None,
         }
     except HTTPException:
         raise

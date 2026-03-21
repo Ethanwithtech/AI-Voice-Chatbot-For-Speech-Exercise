@@ -11,7 +11,12 @@ _model_cache = None
 
 
 def transcribe_audio_local(audio_path: str) -> dict:
-    """Transcribe audio using faster-whisper (CTranslate2 backend, no PyTorch needed)."""
+    """Transcribe audio using faster-whisper (CTranslate2 backend, no PyTorch needed).
+
+    Returns transcript, word_timestamps, word_confidences, and duration.
+    word_confidences contains per-word probability scores from Whisper,
+    which are used for pronunciation quality assessment.
+    """
     model = _get_model()
 
     segments, _ = model.transcribe(
@@ -23,13 +28,22 @@ def transcribe_audio_local(audio_path: str) -> dict:
 
     transcript_parts = []
     word_timestamps = []
+    word_confidences = []
 
     for segment in segments:
         transcript_parts.append(segment.text.strip())
         if segment.words:
             for w in segment.words:
+                word_text = w.word.strip()
                 word_timestamps.append({
-                    "word": w.word.strip(),
+                    "word": word_text,
+                    "start": round(w.start, 3),
+                    "end": round(w.end, 3),
+                })
+                # faster-whisper exposes per-word probability as w.probability
+                word_confidences.append({
+                    "word": word_text,
+                    "confidence": round(w.probability, 4),
                     "start": round(w.start, 3),
                     "end": round(w.end, 3),
                 })
@@ -40,9 +54,20 @@ def transcribe_audio_local(audio_path: str) -> dict:
     if word_timestamps:
         duration = word_timestamps[-1]["end"]
 
+    # Log confidence statistics
+    if word_confidences:
+        confs = [wc["confidence"] for wc in word_confidences]
+        avg_conf = sum(confs) / len(confs)
+        low_conf = sum(1 for c in confs if c < 0.6)
+        logger.info(
+            f"[whisper] Transcription complete: {len(word_confidences)} words, "
+            f"avg_confidence={avg_conf:.3f}, low_confidence_words={low_conf}"
+        )
+
     return {
         "transcript": transcript,
         "word_timestamps": word_timestamps,
+        "word_confidences": word_confidences,
         "duration": duration,
     }
 

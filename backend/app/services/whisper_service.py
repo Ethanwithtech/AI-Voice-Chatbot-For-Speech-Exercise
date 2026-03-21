@@ -60,13 +60,26 @@ async def _transcribe_elevenlabs(audio_path: str) -> dict:
 
     transcript = result.get("text", "")
     word_timestamps = []
+    word_confidences = []
 
     for w in result.get("words", []):
         if w.get("type") == "word":
+            word_text = w.get("text", "")
+            start = w.get("start", 0)
+            end = w.get("end", 0)
+            # ElevenLabs may provide confidence; default to 0.85 if not available
+            confidence = w.get("confidence", 0.85)
+
             word_timestamps.append({
-                "word": w.get("text", ""),
-                "start": w.get("start", 0),
-                "end": w.get("end", 0),
+                "word": word_text,
+                "start": start,
+                "end": end,
+            })
+            word_confidences.append({
+                "word": word_text,
+                "confidence": round(confidence, 4),
+                "start": start,
+                "end": end,
             })
 
     duration = 0
@@ -76,6 +89,7 @@ async def _transcribe_elevenlabs(audio_path: str) -> dict:
     return {
         "transcript": transcript,
         "word_timestamps": word_timestamps,
+        "word_confidences": word_confidences,
         "duration": duration,
     }
 
