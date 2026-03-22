@@ -63,22 +63,36 @@ cd "$BACKEND_DIR"
 rm -rf "$DEPS_DIR"
 mkdir -p "$DEPS_DIR"
 UV_BIN="$(command -v uv 2>/dev/null || true)"
-if [ -n "$UV_BIN" ]; then
-    echo "Installing with uv: $UV_BIN"
-    "$UV_BIN" pip install \
-        --python "$PYTHON_BIN" \
-        --target "$DEPS_DIR" \
-        --no-cache \
-        -r requirements-deploy.txt
-else
-    echo "uv not found, falling back to pip with PYTHONUSERBASE..."
-    export PYTHONUSERBASE="$DEPS_DIR"
-    export PIP_USER=1
-    "$PYTHON_BIN" -m pip install \
-        --disable-pip-version-check \
-        --no-cache-dir \
-        -r requirements-deploy.txt
+if [ -z "$UV_BIN" ]; then
+    echo "ERROR: uv not found in build environment"
+    exit 1
 fi
+echo "Using uv: $UV_BIN ($("$UV_BIN" --version 2>&1))"
+
+# ── CRITICAL: build container has Python 3.11; runtime has Python 3.12 ──
+# If we install with Python 3.11, pydantic_core gets a cp311 .so file that
+# Python 3.12 at runtime cannot load. We MUST install cp312 wheels.
+#
+# Solution: tell uv to download its own managed Python 3.12, then install
+# targeting that version. Manylinux cp312 wheels produced this way are
+# compatible with any CPython 3.12 on linux-x86_64, including the runtime
+# nix Python 3.12 (both share the same cpython-312 stable ABI).
+echo "Installing Python packages for Python 3.12..."
+# KEY: use --python-version / --python-platform instead of --python <path>
+# This lets uv resolve and download cp312 manylinux wheels WITHOUT Python 3.12
+# being installed in the build container (which only has Python 3.11).
+# The resulting _pydantic_core.cpython-312-x86_64-linux-gnu.so is importable
+# by any CPython 3.12 on linux-x86_64, including the runtime nix Python 3.12.
+# Does NOT require `uv python install` (which is blocked by python-downloads=never).
+"$UV_BIN" pip install \
+    --python-version 3.12 \
+    --python-platform linux \
+    --target "$DEPS_DIR" \
+    --no-cache \
+    -r requirements-deploy.txt
+
+echo "Verifying cp312 .so was installed (not cp311)..."
+ls "$DEPS_DIR/pydantic_core/" | grep cpython || echo "(WARNING: no cpython .so found)"
 
 # ── Remove giant development env from workspace ──
 echo "Removing .pythonlibs from bundle..."
