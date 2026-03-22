@@ -34,6 +34,31 @@ else
   pip install -q --no-cache-dir -r requirements-prod.txt
 fi
 
+# ── Remove heavy ML packages left over from development ──
+# These were pulled in by faster-whisper during dev (torch, CUDA, triton, etc.)
+# but are NOT needed for the deploy bundle. faster-whisper will be lazily
+# installed at runtime on the first audio submission (~2-3 min one-time cost).
+# See backend/app/services/whisper_local_service.py for the lazy-install logic.
+# This saves ~3.5 GB from the Bundle image.
+echo "=== Removing heavy ML packages from .pythonlibs (saves ~3.5 GB) ==="
+for SITE_DIR in "$WORKSPACE"/.pythonlibs/lib/python*/site-packages; do
+  if [ -d "$SITE_DIR" ]; then
+    echo "  Cleaning $SITE_DIR ..."
+    for pkg in nvidia torch triton llvmlite scipy ctranslate2 onnxruntime \
+               faster_whisper numba huggingface_hub tokenizers transformers \
+               parselmouth praat; do
+      rm -rf "$SITE_DIR"/${pkg}  2>/dev/null || true
+      rm -rf "$SITE_DIR"/${pkg}-* 2>/dev/null || true
+      rm -rf "$SITE_DIR"/${pkg}*.dist-info 2>/dev/null || true
+    done
+    # nvidia has many sub-packages with names like nvidia_cublas_cu12, etc.
+    rm -rf "$SITE_DIR"/nvidia* 2>/dev/null || true
+    rm -rf "$SITE_DIR"/torch*  2>/dev/null || true
+    echo "  Done."
+  fi
+done
+echo "=== ML cleanup complete ==="
+
 # ── Aggressive cleanup to reduce Bundle size ──
 echo "=== Cleaning up to reduce bundle size ==="
 
