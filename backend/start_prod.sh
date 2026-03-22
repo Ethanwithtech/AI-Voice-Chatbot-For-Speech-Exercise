@@ -45,8 +45,19 @@ fi
 echo "Using Python: $PYTHON_BIN"
 echo "Python version: $($PYTHON_BIN --version 2>&1)"
 
-# Vendored runtime dependencies installed by build.sh
-export PYTHONPATH="$(pwd)/.deps:${PYTHONPATH:-}"
+# Vendored runtime dependencies installed by build.sh.
+# build.sh uses PYTHONUSERBASE=$DEPS_DIR so packages land in:
+#   .deps/lib/python3.11/site-packages/
+# Add both the root and the versioned subpath for robustness.
+DEPS_BASE="$(pwd)/.deps"
+for sp in "$DEPS_BASE" \
+          "$DEPS_BASE/lib/python3.11/site-packages" \
+          "$DEPS_BASE/lib/python3.12/site-packages" \
+          "$DEPS_BASE/lib/python3.10/site-packages"; do
+    if [ -d "$sp" ]; then
+        export PYTHONPATH="${sp}:${PYTHONPATH:-}"
+    fi
+done
 echo "PYTHONPATH=$PYTHONPATH"
 
 echo "Starting uvicorn..."

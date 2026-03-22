@@ -36,15 +36,19 @@ fi
 rm -rf "$WORKSPACE/frontend/node_modules"
 
 # ── Backend deps → backend/.deps ──
+# NOTE: The deployment env sets PIP_USER=1 (uv/pip config).
+# Using --target conflicts with --user and causes "conflicting flags" error.
+# Fix: redirect --user installs to $DEPS_DIR via PYTHONUSERBASE instead.
+# Packages land in $DEPS_DIR/lib/python3.11/site-packages/ — same result.
 echo "Backend: installing runtime deps into backend/.deps ..."
 cd "$BACKEND_DIR"
-unset PIP_USER
 rm -rf "$DEPS_DIR"
 mkdir -p "$DEPS_DIR"
+export PYTHONUSERBASE="$DEPS_DIR"
+export PIP_USER=1
 "$PYTHON_BIN" -m pip install \
   --disable-pip-version-check \
   --no-cache-dir \
-  --target "$DEPS_DIR" \
   -r requirements-deploy.txt
 
 # ── Remove giant development env from workspace ──
