@@ -13,9 +13,9 @@ DEPS_DIR="$BACKEND_DIR/.deps"
 
 echo "=== BUILD START: $(date -u +%H:%M:%S) ==="
 
-echo "Resolving Python 3.11 from PATH..."
+echo "Resolving Python from PATH (trying 3.12, 3.11, 3.10, python3, python)..."
 CLEAN_PATH="$(echo "$PATH" | tr ':' '\n' | grep -v '.pythonlibs' | tr '\n' ':')"
-PYTHON_BIN="$(PATH="$CLEAN_PATH" command -v python3.11 2>/dev/null || PATH="$CLEAN_PATH" command -v python3 2>/dev/null || PATH="$CLEAN_PATH" command -v python 2>/dev/null || true)"
+PYTHON_BIN="$(PATH="$CLEAN_PATH" command -v python3.12 2>/dev/null || PATH="$CLEAN_PATH" command -v python3.11 2>/dev/null || PATH="$CLEAN_PATH" command -v python3.10 2>/dev/null || PATH="$CLEAN_PATH" command -v python3 2>/dev/null || PATH="$CLEAN_PATH" command -v python 2>/dev/null || true)"
 if [ -z "$PYTHON_BIN" ]; then
   echo "ERROR: No Python found in PATH"
   echo "PATH=$PATH"

@@ -1,6 +1,7 @@
 #!/bin/bash
 # ── AI Speech Coach — Production Start Script ──
-# Uses real Python 3.11 from nix store and dependencies vendored in backend/.deps.
+# Uses whatever Python 3 was available during the build step.
+# Does NOT require a specific version — build.sh caches the actual path.
 
 set -e
 cd "$(dirname "$0")" || exit 1
@@ -9,50 +10,69 @@ echo "=== AI Speech Coach Starting ==="
 echo "Directory: $(pwd)"
 echo "Port: 5000"
 
-unset PIP_USER
-TARGET_VER="3.11"
 PYTHON_BIN=""
 
-# Prefer cached Python path from build
+# Method 1: Use path cached by build.sh (most reliable — exact interpreter used to install deps)
 if [ -f "$(pwd)/.python_path" ]; then
-  CACHED="$(cat "$(pwd)/.python_path")"
-  if [ -x "$CACHED" ] && "$CACHED" --version 2>&1 | grep -q "Python ${TARGET_VER}"; then
-    PYTHON_BIN="$CACHED"
-  fi
-fi
-
-# Fallback: PATH without .pythonlibs wrappers
-if [ -z "$PYTHON_BIN" ]; then
-  CLEAN_PATH="$(echo "$PATH" | tr ':' '\n' | grep -v '.pythonlibs' | tr '\n' ':')"
-  PYTHON_BIN="$(PATH="$CLEAN_PATH" command -v python${TARGET_VER} 2>/dev/null || PATH="$CLEAN_PATH" command -v python3 2>/dev/null || PATH="$CLEAN_PATH" command -v python 2>/dev/null || true)"
-fi
-
-# Last resort: search nix store
-if [ -z "$PYTHON_BIN" ]; then
-  for p in /nix/store/*/bin/python${TARGET_VER}; do
-    if [ -x "$p" ] && "$p" --version 2>&1 | grep -q "Python ${TARGET_VER}"; then
-      PYTHON_BIN="$p"
-      break
+    CACHED="$(cat "$(pwd)/.python_path")"
+    if [ -x "$CACHED" ] && "$CACHED" --version &>/dev/null; then
+        PYTHON_BIN="$CACHED"
+        echo "Using cached Python from build: $PYTHON_BIN"
+    else
+        echo "Cached path $CACHED not usable, searching..."
     fi
-  done
+fi
+
+# Method 2: PATH with .pythonlibs/bin stripped (avoids Go wrapper that panics)
+if [ -z "$PYTHON_BIN" ]; then
+    CLEAN_PATH="$(echo "$PATH" | tr ':' '\n' | grep -v '\.pythonlibs/bin' | tr '\n' ':' | sed 's/:$//')"
+    for cmd in python3.12 python3.11 python3.10 python3 python; do
+        FOUND="$(PATH="$CLEAN_PATH" command -v "$cmd" 2>/dev/null || true)"
+        if [ -n "$FOUND" ] && "$FOUND" --version &>/dev/null; then
+            PYTHON_BIN="$FOUND"
+            echo "Found Python in PATH: $PYTHON_BIN"
+            break
+        fi
+    done
+fi
+
+# Method 3: nix store scan
+if [ -z "$PYTHON_BIN" ]; then
+    for p in /nix/store/*/bin/python3.12 /nix/store/*/bin/python3.11 /nix/store/*/bin/python3.10 /nix/store/*/bin/python3; do
+        if [ -x "$p" ] 2>/dev/null && "$p" --version &>/dev/null; then
+            PYTHON_BIN="$p"
+            echo "Found Python in nix store: $PYTHON_BIN"
+            break
+        fi
+    done
+fi
+
+# Method 4: system paths
+if [ -z "$PYTHON_BIN" ]; then
+    for p in /usr/bin/python3 /usr/local/bin/python3 /usr/bin/python; do
+        if [ -x "$p" ] && "$p" --version &>/dev/null; then
+            PYTHON_BIN="$p"
+            echo "Found Python at system path: $PYTHON_BIN"
+            break
+        fi
+    done
 fi
 
 if [ -z "$PYTHON_BIN" ]; then
-  echo "FATAL: Python ${TARGET_VER} not found"
-  exit 1
+    echo "FATAL: No working Python interpreter found!"
+    echo "PATH=$PATH"
+    echo "Contents of /nix/store/*/bin/python*:"
+    ls /nix/store/*/bin/python* 2>/dev/null | head -10 || echo "  (none)"
+    exit 1
 fi
 
-echo "Using Python: $PYTHON_BIN"
-echo "Python version: $($PYTHON_BIN --version 2>&1)"
+echo "Python: $PYTHON_BIN ($($PYTHON_BIN --version 2>&1))"
 
-# Vendored runtime dependencies installed by build.sh.
-# build.sh uses PYTHONUSERBASE=$DEPS_DIR so packages land in:
-#   .deps/lib/python3.11/site-packages/
-# Add both the root and the versioned subpath for robustness.
+# ── PYTHONPATH: cover both --target layout and PYTHONUSERBASE layout ──
 DEPS_BASE="$(pwd)/.deps"
 for sp in "$DEPS_BASE" \
-          "$DEPS_BASE/lib/python3.11/site-packages" \
           "$DEPS_BASE/lib/python3.12/site-packages" \
+          "$DEPS_BASE/lib/python3.11/site-packages" \
           "$DEPS_BASE/lib/python3.10/site-packages"; do
     if [ -d "$sp" ]; then
         export PYTHONPATH="${sp}:${PYTHONPATH:-}"
