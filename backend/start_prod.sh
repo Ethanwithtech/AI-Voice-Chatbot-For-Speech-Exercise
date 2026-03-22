@@ -2,8 +2,9 @@
 # ── AI Speech Coach — Production Start Script ──
 # Works with both Replit Autoscale and Reserved VM deployments.
 #
-# The deployment container may NOT have python3 in PATH by default.
-# We search multiple known locations to find a working Python interpreter.
+# CRITICAL: .pythonlibs/bin/python3 is a Go-language "python-wrapper" shim,
+# NOT real Python. It panics in deployment containers with
+# "no such file or directory". We MUST skip it and find real Python.
 
 set -e
 cd "$(dirname "$0")" || exit 1
@@ -11,72 +12,83 @@ cd "$(dirname "$0")" || exit 1
 echo "=== AI Speech Coach Starting ==="
 echo "Directory: $(pwd)"
 echo "Port: 5000"
+echo "PATH=$PATH"
 
 # Unset PIP_USER to avoid conflicts if we need to pip install anything
 unset PIP_USER
 
-# ── Find a working Python 3 interpreter ──
-# Priority: 0) cached path from build, 1) PATH, 2) nix store, 3) .pythonlibs, 4) system
+# ── Find REAL Python 3 (skip .pythonlibs Go wrapper!) ──
 PYTHON_BIN=""
 
-# Method 0: Read cached path from build.sh (most reliable)
-# Note: we already cd'd to script dir on line 9, so just use pwd
-SCRIPT_DIR="$(pwd)"
-if [ -f "$SCRIPT_DIR/.python_path" ]; then
-    CACHED="$(cat "$SCRIPT_DIR/.python_path")"
-    if [ -x "$CACHED" ]; then
-        PYTHON_BIN="$CACHED"
-        echo "Found python3 from build cache: $PYTHON_BIN"
+# Helper: check if a python binary is real (not the Go wrapper)
+is_real_python() {
+    local p="$1"
+    # Skip anything in .pythonlibs/bin — that's the Go shim
+    case "$p" in
+        */.pythonlibs/bin/*) return 1 ;;
+    esac
+    [ -x "$p" ] && "$p" --version &>/dev/null
+}
+
+# Method 1: Search nix store FIRST (most reliable in Replit containers)
+for p in /nix/store/*/bin/python3.11 /nix/store/*/bin/python3 /nix/store/*/bin/python3.12; do
+    if [ -x "$p" ] 2>/dev/null && is_real_python "$p"; then
+        PYTHON_BIN="$p"
+        echo "Found real python3 in nix store: $PYTHON_BIN"
+        break
+    fi
+done
+
+# Method 2: Check PATH but EXCLUDE .pythonlibs entries
+if [ -z "$PYTHON_BIN" ]; then
+    # Temporarily remove .pythonlibs from PATH to avoid Go wrapper
+    CLEAN_PATH="$(echo "$PATH" | tr ':' '\n' | grep -v '.pythonlibs' | tr '\n' ':')"
+    FOUND="$(PATH="$CLEAN_PATH" command -v python3 2>/dev/null || true)"
+    if [ -n "$FOUND" ] && is_real_python "$FOUND"; then
+        PYTHON_BIN="$FOUND"
+        echo "Found real python3 in PATH (excluding .pythonlibs): $PYTHON_BIN"
     fi
 fi
 
-# Method 1: Check PATH (works if nix python is available)
-if [ -z "$PYTHON_BIN" ] && command -v python3 &>/dev/null; then
-    PYTHON_BIN="$(command -v python3)"
-    echo "Found python3 in PATH: $PYTHON_BIN"
-fi
-
-# Method 2: Search nix store (Replit Autoscale containers)
+# Method 3: Common system locations
 if [ -z "$PYTHON_BIN" ]; then
-    for p in /nix/store/*/bin/python3 /nix/store/*/bin/python3.11 /nix/store/*/bin/python3.12; do
-        if [ -x "$p" ] 2>/dev/null; then
+    for p in /usr/bin/python3 /usr/local/bin/python3 /usr/bin/python3.11; do
+        if is_real_python "$p"; then
             PYTHON_BIN="$p"
-            echo "Found python3 in nix store: $PYTHON_BIN"
+            echo "Found real python3 at system path: $PYTHON_BIN"
             break
         fi
     done
 fi
 
-# Method 3: .pythonlibs wrapper (may be Go shim but sometimes works)
+# Method 4: Read cached path from build.sh (but verify it's not the wrapper)
+if [ -z "$PYTHON_BIN" ] && [ -f "$(pwd)/.python_path" ]; then
+    CACHED="$(cat "$(pwd)/.python_path")"
+    if is_real_python "$CACHED"; then
+        PYTHON_BIN="$CACHED"
+        echo "Found real python3 from build cache: $PYTHON_BIN"
+    else
+        echo "Cached path $CACHED is Go wrapper or invalid, skipping"
+    fi
+fi
+
+# Method 5: Last resort — try .pythonlibs wrapper anyway (may work in dev)
 if [ -z "$PYTHON_BIN" ]; then
     for p in /home/runner/workspace/.pythonlibs/bin/python3 \
              /home/runner/workspace/.pythonlibs/bin/python3.11; do
         if [ -x "$p" ]; then
+            echo "WARNING: Falling back to .pythonlibs wrapper: $p (may panic in deploy)"
             PYTHON_BIN="$p"
-            echo "Found python3 in .pythonlibs: $PYTHON_BIN"
-            break
-        fi
-    done
-fi
-
-# Method 4: Common system locations
-if [ -z "$PYTHON_BIN" ]; then
-    for p in /usr/bin/python3 /usr/local/bin/python3; do
-        if [ -x "$p" ]; then
-            PYTHON_BIN="$p"
-            echo "Found python3 at system path: $PYTHON_BIN"
             break
         fi
     done
 fi
 
 if [ -z "$PYTHON_BIN" ]; then
-    echo "ERROR: Cannot find python3 anywhere!"
+    echo "FATAL: Cannot find any python3!"
     echo "PATH=$PATH"
-    echo "Listing /nix/store/*/bin/python*:"
-    ls -la /nix/store/*/bin/python* 2>/dev/null || echo "  (none found)"
-    echo "Listing .pythonlibs/bin/:"
-    ls -la /home/runner/workspace/.pythonlibs/bin/ 2>/dev/null || echo "  (none found)"
+    ls -la /nix/store/*/bin/python3* 2>/dev/null | head -10 || echo "  nix: none"
+    ls -la /home/runner/workspace/.pythonlibs/bin/ 2>/dev/null || echo "  .pythonlibs/bin: none"
     exit 1
 fi
 
