@@ -69,15 +69,16 @@ fi
 echo "Using Python: $PYTHON"
 echo "Python version: $("$PYTHON" --version 2>&1)"
 
-# Ensure pip packages are findable — add .pythonlibs site-packages to PYTHONPATH
-export PYTHONPATH="/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages:${PYTHONPATH:-}"
+# Ensure pip packages are findable — cover both common install locations
+# (user install: ~/.local/lib/pythonX.Y/site-packages, and .pythonlibs fallback)
+PY_VER=$("$PYTHON" -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>/dev/null || echo "3.11")
+export PYTHONPATH="${HOME}/.local/lib/python${PY_VER}/site-packages:/home/runner/workspace/.pythonlibs/lib/python${PY_VER}/site-packages:${PYTHONPATH:-}"
 
 # Verify uvicorn is importable
 if ! "$PYTHON" -c "import uvicorn" 2>/dev/null; then
     echo "WARNING: uvicorn not found in PYTHONPATH, attempting install..."
-    "$PYTHON" -m pip install -q --no-cache-dir \
-        --target /home/runner/workspace/.pythonlibs/lib/python3.11/site-packages \
-        -r requirements-deploy.txt 2>&1 || true
+    unset PIP_USER
+    "$PYTHON" -m pip install -q --no-cache-dir -r requirements-deploy.txt 2>&1 || true
 fi
 
 echo "Starting uvicorn on port 5000..."
