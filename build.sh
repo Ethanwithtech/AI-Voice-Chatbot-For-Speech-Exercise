@@ -13,33 +13,14 @@ DEPS_DIR="$BACKEND_DIR/.deps"
 
 echo "=== BUILD START: $(date -u +%H:%M:%S) ==="
 
-find_python311() {
-  if [ -f "$BACKEND_DIR/.python_path" ]; then
-    CACHED="$(cat "$BACKEND_DIR/.python_path")"
-    if [ -x "$CACHED" ] && "$CACHED" --version 2>&1 | grep -q "Python 3.11"; then
-      echo "$CACHED"
-      return 0
-    fi
-  fi
-
-  for p in /nix/store/*/bin/python3.11; do
-    if [ -x "$p" ] && "$p" --version 2>&1 | grep -q "Python 3.11"; then
-      echo "$p"
-      return 0
-    fi
-  done
-
-  CLEAN_PATH="$(echo "$PATH" | tr ':' '\n' | grep -v '.pythonlibs' | tr '\n' ':')"
-  FOUND="$(PATH="$CLEAN_PATH" command -v python3.11 2>/dev/null || true)"
-  if [ -n "$FOUND" ] && "$FOUND" --version 2>&1 | grep -q "Python 3.11"; then
-    echo "$FOUND"
-    return 0
-  fi
-
-  return 1
-}
-
-PYTHON_BIN="$(find_python311)"
+echo "Resolving Python 3.11 from PATH..."
+CLEAN_PATH="$(echo "$PATH" | tr ':' '\n' | grep -v '.pythonlibs' | tr '\n' ':')"
+PYTHON_BIN="$(PATH="$CLEAN_PATH" command -v python3.11 2>/dev/null || PATH="$CLEAN_PATH" command -v python3 2>/dev/null || PATH="$CLEAN_PATH" command -v python 2>/dev/null || true)"
+if [ -z "$PYTHON_BIN" ]; then
+  echo "ERROR: No Python found in PATH"
+  echo "PATH=$PATH"
+  exit 1
+fi
 echo "Python: $PYTHON_BIN"
 echo "$PYTHON_BIN" > "$BACKEND_DIR/.python_path"
 

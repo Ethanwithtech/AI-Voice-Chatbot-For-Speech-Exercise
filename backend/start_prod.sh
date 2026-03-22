@@ -21,7 +21,13 @@ if [ -f "$(pwd)/.python_path" ]; then
   fi
 fi
 
-# Fallback: search nix store
+# Fallback: PATH without .pythonlibs wrappers
+if [ -z "$PYTHON_BIN" ]; then
+  CLEAN_PATH="$(echo "$PATH" | tr ':' '\n' | grep -v '.pythonlibs' | tr '\n' ':')"
+  PYTHON_BIN="$(PATH="$CLEAN_PATH" command -v python${TARGET_VER} 2>/dev/null || PATH="$CLEAN_PATH" command -v python3 2>/dev/null || PATH="$CLEAN_PATH" command -v python 2>/dev/null || true)"
+fi
+
+# Last resort: search nix store
 if [ -z "$PYTHON_BIN" ]; then
   for p in /nix/store/*/bin/python${TARGET_VER}; do
     if [ -x "$p" ] && "$p" --version 2>&1 | grep -q "Python ${TARGET_VER}"; then
@@ -29,12 +35,6 @@ if [ -z "$PYTHON_BIN" ]; then
       break
     fi
   done
-fi
-
-# Fallback: PATH without .pythonlibs wrappers
-if [ -z "$PYTHON_BIN" ]; then
-  CLEAN_PATH="$(echo "$PATH" | tr ':' '\n' | grep -v '.pythonlibs' | tr '\n' ':')"
-  PYTHON_BIN="$(PATH="$CLEAN_PATH" command -v python${TARGET_VER} 2>/dev/null || true)"
 fi
 
 if [ -z "$PYTHON_BIN" ]; then
