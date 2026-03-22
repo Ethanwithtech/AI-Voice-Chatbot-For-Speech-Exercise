@@ -20,7 +20,8 @@ unset PIP_USER
 PYTHON_BIN=""
 
 # Method 0: Read cached path from build.sh (most reliable)
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# Note: we already cd'd to script dir on line 9, so just use pwd
+SCRIPT_DIR="$(pwd)"
 if [ -f "$SCRIPT_DIR/.python_path" ]; then
     CACHED="$(cat "$SCRIPT_DIR/.python_path")"
     if [ -x "$CACHED" ]; then
