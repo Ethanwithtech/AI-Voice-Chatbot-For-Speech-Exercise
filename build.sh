@@ -36,20 +36,32 @@ fi
 rm -rf "$WORKSPACE/frontend/node_modules"
 
 # ── Backend deps → backend/.deps ──
-# NOTE: The deployment env sets PIP_USER=1 (uv/pip config).
-# Using --target conflicts with --user and causes "conflicting flags" error.
-# Fix: redirect --user installs to $DEPS_DIR via PYTHONUSERBASE instead.
-# Packages land in $DEPS_DIR/lib/python3.11/site-packages/ — same result.
+# Use `uv pip install --target` which:
+#   1. Puts packages flat in $DEPS_DIR/ (no versioned subdirectory)
+#   2. Does NOT conflict with PIP_USER=1 (uv handles --target independently)
+#   3. Works even when the nix Python has no pip module
+# PYTHONPATH at runtime just needs to include $DEPS_DIR directly.
 echo "Backend: installing runtime deps into backend/.deps ..."
 cd "$BACKEND_DIR"
 rm -rf "$DEPS_DIR"
 mkdir -p "$DEPS_DIR"
-export PYTHONUSERBASE="$DEPS_DIR"
-export PIP_USER=1
-"$PYTHON_BIN" -m pip install \
-  --disable-pip-version-check \
-  --no-cache-dir \
-  -r requirements-deploy.txt
+UV_BIN="$(command -v uv 2>/dev/null || true)"
+if [ -n "$UV_BIN" ]; then
+    echo "Installing with uv: $UV_BIN"
+    "$UV_BIN" pip install \
+        --python "$PYTHON_BIN" \
+        --target "$DEPS_DIR" \
+        --no-cache \
+        -r requirements-deploy.txt
+else
+    echo "uv not found, falling back to pip with PYTHONUSERBASE..."
+    export PYTHONUSERBASE="$DEPS_DIR"
+    export PIP_USER=1
+    "$PYTHON_BIN" -m pip install \
+        --disable-pip-version-check \
+        --no-cache-dir \
+        -r requirements-deploy.txt
+fi
 
 # ── Remove giant development env from workspace ──
 echo "Removing .pythonlibs from bundle..."
