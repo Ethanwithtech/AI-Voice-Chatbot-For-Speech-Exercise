@@ -277,7 +277,7 @@ export default function MockTestPage() {
       <div className="max-w-3xl mx-auto">
         {/* Header */}
         <div className="flex items-center gap-4 mb-8">
-          <Button variant="ghost" onClick={() => navigate("/practice")}>
+          <Button variant="ghost" onClick={() => navigate("/")}>
             <ArrowLeft className="h-4 w-4 mr-2" /> Back
           </Button>
           <div className="flex items-center gap-2">
@@ -712,7 +712,7 @@ export default function MockTestPage() {
             )}
 
             <div className="flex gap-3 justify-center">
-              <Button variant="outline" onClick={() => navigate("/practice")}>Back to Practice</Button>
+              <Button variant="outline" onClick={() => navigate("/")}>Back to Home</Button>
               <Button variant="outline" onClick={() => navigate("/history")}>View History</Button>
             </div>
           </div>

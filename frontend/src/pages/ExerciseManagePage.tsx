@@ -216,42 +216,47 @@ export default function ExerciseManagePage() {
                     </div>
                     <p className="text-sm text-muted-foreground line-clamp-1">{ex.description}</p>
                   </div>
-                  <div className="flex items-center gap-1 ml-4">
+                  <div className="flex items-center gap-1 ml-4 flex-wrap justify-end">
                     {ex.exercise_type === "craa" && (
                       <>
                         <Button
                           variant="ghost"
-                          size="icon"
+                          size="sm"
                           title="Preview as Practice"
                           onClick={() => navigate(`/craa-practice?exerciseId=${ex.id}`)}
                         >
-                          <Eye className="h-4 w-4 text-blue-500" />
+                          <Eye className="h-4 w-4 mr-1 text-blue-500" />
+                          <span className="text-xs">Preview</span>
                         </Button>
                         <Button
                           variant="ghost"
-                          size="icon"
+                          size="sm"
                           title="Preview as Mock Test"
                           onClick={() => navigate(`/mock-test?exerciseId=${ex.id}`)}
                         >
-                          <Shield className="h-4 w-4 text-red-500" />
+                          <Shield className="h-4 w-4 mr-1 text-red-500" />
+                          <span className="text-xs">Mock Test</span>
                         </Button>
                       </>
                     )}
                     {ex.exercise_type !== "craa" && (
                       <Button
                         variant="ghost"
-                        size="icon"
+                        size="sm"
                         title="Preview Exercise"
                         onClick={() => navigate(`/practice?exerciseId=${ex.id}`)}
                       >
-                        <Eye className="h-4 w-4 text-blue-500" />
+                        <Eye className="h-4 w-4 mr-1 text-blue-500" />
+                        <span className="text-xs">Preview</span>
                       </Button>
                     )}
-                    <Button variant="ghost" size="icon" onClick={() => openEditDialog(ex)}>
-                      <Pencil className="h-4 w-4" />
+                    <Button variant="ghost" size="sm" onClick={() => openEditDialog(ex)}>
+                      <Pencil className="h-4 w-4 mr-1" />
+                      <span className="text-xs">Edit</span>
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleDelete(ex.id)} className="text-destructive hover:text-destructive">
-                      <Trash2 className="h-4 w-4" />
+                    <Button variant="ghost" size="sm" onClick={() => handleDelete(ex.id)} className="text-destructive hover:text-destructive">
+                      <Trash2 className="h-4 w-4 mr-1" />
+                      <span className="text-xs">Delete</span>
                     </Button>
                   </div>
                 </CardContent>
