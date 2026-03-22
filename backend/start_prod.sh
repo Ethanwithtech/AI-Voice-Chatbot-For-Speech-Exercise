@@ -1,10 +1,11 @@
 #!/bin/bash
 # ── AI Speech Coach — Production Start Script ──
-# Works with both Replit Autoscale and Reserved VM deployments.
+# Works with Replit Autoscale deployment.
 #
-# CRITICAL: .pythonlibs/bin/python3 is a Go-language "python-wrapper" shim,
-# NOT real Python. It panics in deployment containers with
-# "no such file or directory". We MUST skip it and find real Python.
+# CRITICAL CONSTRAINTS:
+# 1. .pythonlibs/bin/python3 is a Go "python-wrapper" shim → panics in deploy
+# 2. Must use Python 3.11 specifically (packages compiled for 3.11 in build)
+# 3. Using Python 3.12 causes "No module named 'pydantic_core._pydantic_core'"
 
 set -e
 cd "$(dirname "$0")" || exit 1
@@ -14,72 +15,89 @@ echo "Directory: $(pwd)"
 echo "Port: 5000"
 echo "PATH=$PATH"
 
-# Unset PIP_USER to avoid conflicts if we need to pip install anything
 unset PIP_USER
 
-# ── Find REAL Python 3 (skip .pythonlibs Go wrapper!) ──
+# ── Target Python version (must match .replit modules and build step) ──
+TARGET_VER="3.11"
+
+# ── Find Python 3.11 specifically ──
 PYTHON_BIN=""
 
-# Helper: check if a python binary is real (not the Go wrapper)
-is_real_python() {
-    local p="$1"
-    # Skip anything in .pythonlibs/bin — that's the Go shim
-    case "$p" in
-        */.pythonlibs/bin/*) return 1 ;;
-    esac
-    [ -x "$p" ] && "$p" --version &>/dev/null
-}
-
-# Method 1: Search nix store FIRST (most reliable in Replit containers)
-for p in /nix/store/*/bin/python3.11 /nix/store/*/bin/python3 /nix/store/*/bin/python3.12; do
-    if [ -x "$p" ] 2>/dev/null && is_real_python "$p"; then
-        PYTHON_BIN="$p"
-        echo "Found real python3 in nix store: $PYTHON_BIN"
-        break
-    fi
-done
-
-# Method 2: Check PATH but EXCLUDE .pythonlibs entries
-if [ -z "$PYTHON_BIN" ]; then
-    # Temporarily remove .pythonlibs from PATH to avoid Go wrapper
-    CLEAN_PATH="$(echo "$PATH" | tr ':' '\n' | grep -v '.pythonlibs' | tr '\n' ':')"
-    FOUND="$(PATH="$CLEAN_PATH" command -v python3 2>/dev/null || true)"
-    if [ -n "$FOUND" ] && is_real_python "$FOUND"; then
-        PYTHON_BIN="$FOUND"
-        echo "Found real python3 in PATH (excluding .pythonlibs): $PYTHON_BIN"
+# Method 0: Read cached path from build.sh
+if [ -f "$(pwd)/.python_path" ]; then
+    CACHED="$(cat "$(pwd)/.python_path")"
+    if [ -x "$CACHED" ] 2>/dev/null; then
+        # Verify it's real Python and correct version
+        VER="$("$CACHED" --version 2>&1 || true)"
+        if echo "$VER" | grep -q "Python ${TARGET_VER}"; then
+            PYTHON_BIN="$CACHED"
+            echo "Found Python ${TARGET_VER} from build cache: $PYTHON_BIN"
+        else
+            echo "Cached $CACHED is $VER (need ${TARGET_VER}), skipping"
+        fi
     fi
 fi
 
-# Method 3: Common system locations
+# Method 1: Search nix store for python3.11 specifically
 if [ -z "$PYTHON_BIN" ]; then
-    for p in /usr/bin/python3 /usr/local/bin/python3 /usr/bin/python3.11; do
-        if is_real_python "$p"; then
-            PYTHON_BIN="$p"
-            echo "Found real python3 at system path: $PYTHON_BIN"
-            break
+    for p in /nix/store/*/bin/python${TARGET_VER}; do
+        if [ -x "$p" ] 2>/dev/null; then
+            # Skip .pythonlibs wrapper
+            case "$p" in */.pythonlibs/*) continue ;; esac
+            VER="$("$p" --version 2>&1 || true)"
+            if echo "$VER" | grep -q "Python ${TARGET_VER}"; then
+                PYTHON_BIN="$p"
+                echo "Found Python ${TARGET_VER} in nix store: $PYTHON_BIN"
+                break
+            fi
         fi
     done
 fi
 
-# Method 4: Read cached path from build.sh (but verify it's not the wrapper)
-if [ -z "$PYTHON_BIN" ] && [ -f "$(pwd)/.python_path" ]; then
-    CACHED="$(cat "$(pwd)/.python_path")"
-    if is_real_python "$CACHED"; then
-        PYTHON_BIN="$CACHED"
-        echo "Found real python3 from build cache: $PYTHON_BIN"
-    else
-        echo "Cached path $CACHED is Go wrapper or invalid, skipping"
-    fi
+# Method 2: Check PATH for python3.11 (exclude .pythonlibs)
+if [ -z "$PYTHON_BIN" ]; then
+    CLEAN_PATH="$(echo "$PATH" | tr ':' '\n' | grep -v '.pythonlibs' | tr '\n' ':')"
+    # Try python3.11 first, then python3
+    for cmd in python${TARGET_VER} python3; do
+        FOUND="$(PATH="$CLEAN_PATH" command -v "$cmd" 2>/dev/null || true)"
+        if [ -n "$FOUND" ]; then
+            VER="$("$FOUND" --version 2>&1 || true)"
+            if echo "$VER" | grep -q "Python ${TARGET_VER}"; then
+                PYTHON_BIN="$FOUND"
+                echo "Found Python ${TARGET_VER} in PATH: $PYTHON_BIN"
+                break
+            else
+                echo "PATH has $FOUND but it's $VER (need ${TARGET_VER})"
+            fi
+        fi
+    done
 fi
 
-# Method 5: Last resort — try .pythonlibs wrapper anyway (may work in dev)
+# Method 3: System locations
 if [ -z "$PYTHON_BIN" ]; then
-    for p in /home/runner/workspace/.pythonlibs/bin/python3 \
-             /home/runner/workspace/.pythonlibs/bin/python3.11; do
-        if [ -x "$p" ]; then
-            echo "WARNING: Falling back to .pythonlibs wrapper: $p (may panic in deploy)"
-            PYTHON_BIN="$p"
-            break
+    for p in /usr/bin/python${TARGET_VER} /usr/local/bin/python${TARGET_VER}; do
+        if [ -x "$p" ] 2>/dev/null; then
+            VER="$("$p" --version 2>&1 || true)"
+            if echo "$VER" | grep -q "Python ${TARGET_VER}"; then
+                PYTHON_BIN="$p"
+                echo "Found Python ${TARGET_VER} at system path: $PYTHON_BIN"
+                break
+            fi
+        fi
+    done
+fi
+
+# Method 4: If 3.11 not found, try ANY real python3 as last resort
+if [ -z "$PYTHON_BIN" ]; then
+    echo "WARNING: Python ${TARGET_VER} not found, trying any python3..."
+    for p in /nix/store/*/bin/python3; do
+        if [ -x "$p" ] 2>/dev/null; then
+            case "$p" in */.pythonlibs/*) continue ;; esac
+            if "$p" --version &>/dev/null; then
+                PYTHON_BIN="$p"
+                echo "WARNING: Using fallback $PYTHON_BIN ($("$p" --version 2>&1))"
+                break
+            fi
         fi
     done
 fi
@@ -88,21 +106,22 @@ if [ -z "$PYTHON_BIN" ]; then
     echo "FATAL: Cannot find any python3!"
     echo "PATH=$PATH"
     ls -la /nix/store/*/bin/python3* 2>/dev/null | head -10 || echo "  nix: none"
-    ls -la /home/runner/workspace/.pythonlibs/bin/ 2>/dev/null || echo "  .pythonlibs/bin: none"
     exit 1
 fi
 
 echo "Using Python: $PYTHON_BIN"
-echo "Python version: $($PYTHON_BIN --version 2>&1 || echo 'unknown')"
+echo "Python version: $($PYTHON_BIN --version 2>&1)"
 
-# ── Set PYTHONPATH for installed packages ──
-for PY_VER in 3.11 3.12 3.10; do
-    for base in "$HOME/.local/lib/python${PY_VER}/site-packages" \
-                "/home/runner/workspace/.pythonlibs/lib/python${PY_VER}/site-packages"; do
-        if [ -d "$base" ]; then
-            export PYTHONPATH="${base}:${PYTHONPATH:-}"
-        fi
-    done
+# ── Set PYTHONPATH only for the matching Python version ──
+ACTUAL_VER="$($PYTHON_BIN -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null || echo "$TARGET_VER")"
+echo "Setting PYTHONPATH for Python $ACTUAL_VER"
+
+for base in "$HOME/.local/lib/python${ACTUAL_VER}/site-packages" \
+            "/home/runner/workspace/.pythonlibs/lib/python${ACTUAL_VER}/site-packages"; do
+    if [ -d "$base" ]; then
+        export PYTHONPATH="${base}:${PYTHONPATH:-}"
+        echo "  Added: $base"
+    fi
 done
 
 echo "PYTHONPATH=$PYTHONPATH"

@@ -91,37 +91,39 @@ rm -f "$WORKSPACE"/*.pdf "$WORKSPACE"/*.pptx "$WORKSPACE"/*.docx 2>/dev/null || 
 rm -rf "$WORKSPACE/.upm" 2>/dev/null || true
 rm -rf "$WORKSPACE/.cache" 2>/dev/null || true
 
-# ── Locate and cache Python path for the run script ──
-# The Autoscale deployment container may not have python3 in PATH.
-# Find it now during build and save the path for start_prod.sh to use.
-echo "=== Locating Python interpreter ==="
+# ── Locate and cache Python 3.11 path for the run script ──
+# MUST match the version in .replit modules (python-3.11).
+# Packages were compiled for 3.11 — using 3.12 causes pydantic_core crash.
+# CRITICAL: .pythonlibs/bin/python3 is a Go shim — skip it!
+echo "=== Locating Python 3.11 interpreter ==="
 echo "PATH=$PATH"
+TARGET_VER="3.11"
 PYTHON_BIN=""
 
-# Check PATH
-if command -v python3 &>/dev/null; then
-    PYTHON_BIN="$(command -v python3)"
-    echo "Found python3 in PATH: $PYTHON_BIN"
-fi
-
-# Check nix store
-if [ -z "$PYTHON_BIN" ]; then
-    for p in /nix/store/*/bin/python3; do
-        if [ -x "$p" ] 2>/dev/null; then
+# Priority 1: nix store python3.11 specifically
+for p in /nix/store/*/bin/python${TARGET_VER}; do
+    if [ -x "$p" ] 2>/dev/null; then
+        VER="$("$p" --version 2>&1 || true)"
+        if echo "$VER" | grep -q "Python ${TARGET_VER}"; then
             PYTHON_BIN="$p"
-            echo "Found python3 in nix store: $PYTHON_BIN"
+            echo "Found Python ${TARGET_VER} in nix store: $PYTHON_BIN"
             break
         fi
-    done
-fi
+    fi
+done
 
-# Check .pythonlibs
+# Priority 2: PATH but exclude .pythonlibs, must be 3.11
 if [ -z "$PYTHON_BIN" ]; then
-    for p in "$WORKSPACE"/.pythonlibs/bin/python3 "$WORKSPACE"/.pythonlibs/bin/python3.11; do
-        if [ -x "$p" ]; then
-            PYTHON_BIN="$p"
-            echo "Found python3 in .pythonlibs: $PYTHON_BIN"
-            break
+    CLEAN_PATH="$(echo "$PATH" | tr ':' '\n' | grep -v '.pythonlibs' | tr '\n' ':')"
+    for cmd in python${TARGET_VER} python3; do
+        FOUND="$(PATH="$CLEAN_PATH" command -v "$cmd" 2>/dev/null || true)"
+        if [ -n "$FOUND" ]; then
+            VER="$("$FOUND" --version 2>&1 || true)"
+            if echo "$VER" | grep -q "Python ${TARGET_VER}"; then
+                PYTHON_BIN="$FOUND"
+                echo "Found Python ${TARGET_VER} in PATH: $PYTHON_BIN"
+                break
+            fi
         fi
     done
 fi
@@ -131,11 +133,9 @@ if [ -n "$PYTHON_BIN" ]; then
     echo "Cached Python path to backend/.python_path: $PYTHON_BIN"
     echo "Python version: $($PYTHON_BIN --version 2>&1 || echo 'unknown')"
 else
-    echo "WARNING: Could not find python3 during build!"
-    echo "Listing potential locations:"
-    ls -la /nix/store/*/bin/python3* 2>/dev/null | head -5 || echo "  nix: none"
-    ls -la "$WORKSPACE"/.pythonlibs/bin/python* 2>/dev/null || echo "  .pythonlibs: none"
-    which python 2>/dev/null || echo "  python: not in PATH"
+    echo "WARNING: Could not find Python ${TARGET_VER} during build!"
+    echo "Listing nix python binaries:"
+    ls -la /nix/store/*/bin/python3* 2>/dev/null | head -10 || echo "  nix: none"
 fi
 
 echo "=== Build complete ==="
