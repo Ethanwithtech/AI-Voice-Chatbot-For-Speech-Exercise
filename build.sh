@@ -13,15 +13,32 @@ DEPS_DIR="$BACKEND_DIR/.deps"
 
 echo "=== BUILD START: $(date -u +%H:%M:%S) ==="
 
-echo "Resolving Python from PATH (trying 3.12, 3.11, 3.10, python3, python)..."
+echo "Resolving Python from PATH and nix store..."
 CLEAN_PATH="$(echo "$PATH" | tr ':' '\n' | grep -v '.pythonlibs' | tr '\n' ':')"
-PYTHON_BIN="$(PATH="$CLEAN_PATH" command -v python3.12 2>/dev/null || PATH="$CLEAN_PATH" command -v python3.11 2>/dev/null || PATH="$CLEAN_PATH" command -v python3.10 2>/dev/null || PATH="$CLEAN_PATH" command -v python3 2>/dev/null || PATH="$CLEAN_PATH" command -v python 2>/dev/null || true)"
+PYTHON_BIN=""
+# Try PATH first (prefer explicit versioned commands)
+for cmd in python3.12 python3.11 python3.10 python3 python; do
+    FOUND="$(PATH="$CLEAN_PATH" command -v "$cmd" 2>/dev/null || true)"
+    if [ -n "$FOUND" ] && "$FOUND" -c "import sys; sys.exit(0)" 2>/dev/null; then
+        PYTHON_BIN="$FOUND"
+        break
+    fi
+done
+# Fall back to nix store — same lookup as start_prod.sh uses at runtime
 if [ -z "$PYTHON_BIN" ]; then
-  echo "ERROR: No Python found in PATH"
-  echo "PATH=$PATH"
-  exit 1
+    for p in /nix/store/*/bin/python3.12 /nix/store/*/bin/python3.11 /nix/store/*/bin/python3; do
+        if [ -x "$p" ] 2>/dev/null && "$p" -c "import sys; sys.exit(0)" 2>/dev/null; then
+            PYTHON_BIN="$p"
+            break
+        fi
+    done
 fi
-echo "Python: $PYTHON_BIN"
+if [ -z "$PYTHON_BIN" ]; then
+    echo "ERROR: No Python found"
+    echo "PATH=$PATH"
+    exit 1
+fi
+echo "Python: $PYTHON_BIN ($("$PYTHON_BIN" --version 2>&1))"
 echo "$PYTHON_BIN" > "$BACKEND_DIR/.python_path"
 
 # ── Frontend ──

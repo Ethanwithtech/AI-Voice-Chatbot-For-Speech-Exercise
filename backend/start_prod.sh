@@ -43,37 +43,53 @@ mkdir -p "$DEPS_DIR"
 export PYTHONPATH="$DEPS_DIR:${PYTHONPATH:-}"
 echo "PYTHONPATH=$PYTHONPATH"
 
-# ── Install if uvicorn is missing ──
+# ── Check deps and reinstall if missing or ABI-mismatched ──
+# pydantic_core has a compiled C extension — if it was installed for a
+# different Python version (e.g. cp311 built, cp312 running) it will fail.
+# We check both uvicorn AND pydantic_core, and do a clean reinstall if either fails.
+NEED_INSTALL=0
 if ! "$PYTHON_BIN" -c "import uvicorn" 2>/dev/null; then
-    echo "uvicorn not found — installing via uv..."
+    echo "uvicorn not importable — need install"
+    NEED_INSTALL=1
+fi
+if ! "$PYTHON_BIN" -c "import pydantic_core" 2>/dev/null; then
+    echo "pydantic_core not importable (likely ABI mismatch: built for wrong Python version) — need reinstall"
+    NEED_INSTALL=1
+fi
 
-    # Find uv (Replit's package manager — has pip module, unlike nix python3.12)
+if [ "$NEED_INSTALL" = "1" ]; then
+    echo "Installing/reinstalling deps for $PYTHON_BIN ($("$PYTHON_BIN" --version 2>&1))..."
+    # Wipe any stale packages from a different Python version
+    rm -rf "$DEPS_DIR"
+    mkdir -p "$DEPS_DIR"
+    export PYTHONPATH="$DEPS_DIR:${PYTHONPATH:-}"
+
     UV_BIN="$(command -v uv 2>/dev/null || true)"
     if [ -n "$UV_BIN" ]; then
         echo "Using uv: $UV_BIN"
-        # uv pip install --target avoids the --user/--target pip conflict entirely
+        # --python tells uv which ABI to target for wheel selection
         "$UV_BIN" pip install \
             --python "$PYTHON_BIN" \
             --target "$DEPS_DIR" \
             --no-cache \
             -r requirements-deploy.txt
     else
-        # Fallback: bootstrap pip via ensurepip then install
-        echo "uv not found, trying ensurepip bootstrap..."
+        echo "uv not found, trying ensurepip then pip..."
         "$PYTHON_BIN" -m ensurepip --upgrade 2>/dev/null || true
-        "$PYTHON_BIN" -m pip install \
-            --no-cache-dir \
-            --target "$DEPS_DIR" \
+        "$PYTHON_BIN" -m pip install --no-cache-dir --target "$DEPS_DIR" \
             -r requirements-deploy.txt
     fi
 
-    if ! "$PYTHON_BIN" -c "import uvicorn" 2>/dev/null; then
-        echo "ERROR: uvicorn still not importable after install!"
-        echo "DEPS_DIR contents (first 20):"
-        ls "$DEPS_DIR" 2>/dev/null | head -20
-        exit 1
-    fi
-    echo "Install complete."
+    # Verify both critical imports work now
+    for mod in uvicorn pydantic_core fastapi; do
+        if ! "$PYTHON_BIN" -c "import $mod" 2>/dev/null; then
+            echo "ERROR: $mod still not importable after install!"
+            echo "DEPS_DIR top-level:"
+            ls "$DEPS_DIR" 2>/dev/null | head -30
+            exit 1
+        fi
+    done
+    echo "Install complete — all deps verified."
 fi
 
 echo "Starting uvicorn..."
