@@ -23,10 +23,12 @@ cd "$WORKSPACE/backend"
 # faster-whisper (~500MB) is NOT installed here — it will be lazily installed
 # at runtime on the first audio submission (~2-3 min one-time cost).
 # See backend/app/services/whisper_local_service.py for the lazy-install logic.
+SITE_PACKAGES="/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages"
+mkdir -p "$SITE_PACKAGES"
 if [ -f requirements-deploy.txt ]; then
-  pip install -q --no-cache-dir -r requirements-deploy.txt
+  pip install -q --no-cache-dir --target "$SITE_PACKAGES" -r requirements-deploy.txt
 else
-  pip install -q --no-cache-dir -r requirements-prod.txt
+  pip install -q --no-cache-dir --target "$SITE_PACKAGES" -r requirements-prod.txt
 fi
 
 # ── Aggressive cleanup to reduce Bundle size ──
