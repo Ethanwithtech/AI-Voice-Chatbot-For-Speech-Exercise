@@ -49,19 +49,20 @@ def _ensure_faster_whisper_installed():
     logger.info("[whisper] faster-whisper not found — installing at runtime (one-time ~2-3 min)...")
 
     try:
-        # Install faster-whisper into .pythonlibs site-packages
-        # (same location as build.sh installs other packages)
-        target_dir = "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages"
+        # Install faster-whisper into backend/.deps
+        # (same location as build.sh installs other runtime dependencies)
+        target_dir = "/home/runner/workspace/backend/.deps"
+        os.makedirs(target_dir, exist_ok=True)
+        if target_dir not in sys.path:
+            sys.path.insert(0, target_dir)
+
         install_cmd = [
             sys.executable, "-m", "pip", "install",
             "--no-cache-dir",
             "--quiet",
+            "--target", target_dir,
             "faster-whisper==1.1.1",
         ]
-        # Use --target if the directory exists (Replit deploy environment)
-        if os.path.isdir(os.path.dirname(target_dir)):
-            os.makedirs(target_dir, exist_ok=True)
-            install_cmd.extend(["--target", target_dir])
 
         result = subprocess.run(
             install_cmd,
