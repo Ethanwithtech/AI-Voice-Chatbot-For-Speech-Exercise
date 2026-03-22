@@ -91,51 +91,9 @@ rm -f "$WORKSPACE"/*.pdf "$WORKSPACE"/*.pptx "$WORKSPACE"/*.docx 2>/dev/null || 
 rm -rf "$WORKSPACE/.upm" 2>/dev/null || true
 rm -rf "$WORKSPACE/.cache" 2>/dev/null || true
 
-# ── Locate and cache Python path for the run script ──
-# The Autoscale deployment container may not have python3 in PATH.
-# Find it now during build and save the path for start_prod.sh to use.
-echo "=== Locating Python interpreter ==="
-echo "PATH=$PATH"
-PYTHON_BIN=""
-
-# Check PATH
-if command -v python3 &>/dev/null; then
-    PYTHON_BIN="$(command -v python3)"
-    echo "Found python3 in PATH: $PYTHON_BIN"
-fi
-
-# Check nix store
-if [ -z "$PYTHON_BIN" ]; then
-    for p in /nix/store/*/bin/python3; do
-        if [ -x "$p" ] 2>/dev/null; then
-            PYTHON_BIN="$p"
-            echo "Found python3 in nix store: $PYTHON_BIN"
-            break
-        fi
-    done
-fi
-
-# Check .pythonlibs
-if [ -z "$PYTHON_BIN" ]; then
-    for p in "$WORKSPACE"/.pythonlibs/bin/python3 "$WORKSPACE"/.pythonlibs/bin/python3.11; do
-        if [ -x "$p" ]; then
-            PYTHON_BIN="$p"
-            echo "Found python3 in .pythonlibs: $PYTHON_BIN"
-            break
-        fi
-    done
-fi
-
-if [ -n "$PYTHON_BIN" ]; then
-    echo "$PYTHON_BIN" > "$WORKSPACE/backend/.python_path"
-    echo "Cached Python path to backend/.python_path: $PYTHON_BIN"
-    echo "Python version: $($PYTHON_BIN --version 2>&1 || echo 'unknown')"
-else
-    echo "WARNING: Could not find python3 during build!"
-    echo "Listing potential locations:"
-    ls -la /nix/store/*/bin/python3* 2>/dev/null | head -5 || echo "  nix: none"
-    ls -la "$WORKSPACE"/.pythonlibs/bin/python* 2>/dev/null || echo "  .pythonlibs: none"
-    which python 2>/dev/null || echo "  python: not in PATH"
-fi
+# ── Remove stale .python_path cache (the Go wrapper path causes panics at runtime) ──
+# start_prod.sh now finds Python itself at runtime — no cache needed.
+rm -f "$WORKSPACE/backend/.python_path" 2>/dev/null || true
+echo "=== Removed stale .python_path cache (if any) ==="
 
 echo "=== Build complete ==="
